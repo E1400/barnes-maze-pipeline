@@ -19,14 +19,33 @@ a notebook, or a command line.
 
 ## How to run it
 
-TODO once the app scaffold exists:
+**To just use it:** open the live demo URL above. There is nothing to install
+— no Node, no Python, no account.
+
+**To run it from source** you need Node `^20.19` or `>=22.12` (what the Vite 8
+toolchain requires). This repo is developed and verified against Node 24,
+pinned in [`.nvmrc`](.nvmrc):
 
 ```bash
-npm install
-npm run dev
+git clone https://github.com/E1400/barnes-maze-pipeline.git
+cd barnes-maze-pipeline
+nvm use          # optional — picks up the pinned Node version from .nvmrc
+npm install      # exact versions come from package-lock.json
+npm run dev      # dev server on http://localhost:5173
 ```
 
-Or just open the live demo URL above — nothing to install for actual use.
+Other scripts:
+
+```bash
+npm run build    # production build into dist/
+npm run preview  # serve the production build locally
+npm run lint     # oxlint
+```
+
+The sample videos are not committed here (they're large, and they belong to
+the take-home repo). Download `test50`, `test51`, and `test53` from
+[salk-airc/rse-takehome-2026](https://github.com/salk-airc/rse-takehome-2026/tree/main/data/barnes-maze)
+and drag them into the app.
 
 ## What it does
 
