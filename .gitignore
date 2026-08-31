@@ -8,3 +8,8 @@ dist-ssr/
 *.local
 .vscode/
 .idea/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/

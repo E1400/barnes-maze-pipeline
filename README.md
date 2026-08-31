@@ -37,10 +37,20 @@ npm run dev      # dev server on http://localhost:5173
 Other scripts:
 
 ```bash
-npm run build    # production build into dist/
-npm run preview  # serve the production build locally
-npm run lint     # oxlint
+npm run build      # production build into dist/
+npm run preview    # serve the production build locally
+npm run lint       # oxlint (warnings fail)
+npm run typecheck  # tsc --build, no emit
+npm test           # vitest, unit tests for src/core
+npm run test:e2e   # playwright smoke test against the production build
 ```
+
+The end-to-end test drives a real browser, so the first run needs
+`npx playwright install chromium` (about 100 MB, once per machine). Everything
+except that step runs on a cold clone with nothing but `npm ci`.
+
+Lint, typecheck, unit tests, build, and the end-to-end test all run in CI on
+every push — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 The sample videos are not committed here (they're large, and they belong to
 the take-home repo). Download `test50`, `test51`, and `test53` from
@@ -85,6 +95,21 @@ for as many videos as you want to process.
 
 See [AI_NOTES.md](AI_NOTES.md).
 
+## Repo layout
+
+```
+src/core/     pure logic, no DOM — unit-tested with Vitest
+src/workers/  OpenCV.js tracking worker
+src/state/    IndexedDB persistence
+src/ui/       React components
+src/io/       CSV/XLSX export and the project-file schema
+tests/e2e/    Playwright end-to-end tests
+demo-outputs/ committed real outputs for test50 / test51 / test53
+docs/         build plan and an archived copy of the take-home brief
+```
+
+Each `src/` subdirectory has a README describing what belongs there.
+
 ## License
 
-TODO — add a LICENSE file (MIT or Apache-2.0).
+[MIT](LICENSE).
