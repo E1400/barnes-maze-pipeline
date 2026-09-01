@@ -110,7 +110,22 @@ Elvis decided instead, the reasoning, and — once it's known — who was right.
    non-existent 404 and shipped a test that passes whether or not `base` is
    set.
 
-3. <!-- next real one goes here -->
+3. **I used "nothing to install" as an argument against OpenCV.js. It isn't one.**
+   Presenting the CV engine choice, Claude argued that OpenCV.js's ~9 MB WASM
+   payload "slightly undercuts" the README's no-install promise, and leaned
+   plain TypeScript partly on that basis. Elvis pushed back: the brief's
+   no-install requirement is about the *end user* not putting anything on their
+   machine — no Python, no API key, no account — and a WASM blob served from
+   the same static site is just a page asset the browser caches. Correct, and
+   the distinction matters: conflating "large download" with "installation"
+   would have quietly disqualified a legitimate option for the wrong reason.
+   The real trade-offs are narrower (first-load time, and CV logic behind a
+   WASM boundary being awkward to unit-test), and neither is disqualifying.
+   Decision landed on: build the TypeScript detector first, behind an interface
+   that an OpenCV.js backend can implement, so the two can be compared on
+   identical frames rather than argued about.
+
+4. <!-- next real one goes here -->
 
 ## What I checked before believing it worked
 

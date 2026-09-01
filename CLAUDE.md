@@ -83,15 +83,32 @@ just change code silently, when a decision changes.
 
 - **Stack:** React + TypeScript + Vite, deployed to GitHub Pages (fully
   static hosting is a natural fit for a fully static app).
-- **CV engine:** OpenCV.js (WASM) running in a Web Worker. Classical
-  background subtraction (median-of-frames background model) + contour
-  extraction, masked to the platform ROI polygon (this is what rejects the
-  cable/hardware visible outside the platform edge in `test51`). Chosen over
-  an ONNX segmentation model or a hosted vision API because the sample frames
-  are a genuinely easy classical-CV case (dark, high-contrast mouse, static
-  camera, static background) — this keeps the "no GPU, nothing to download,
-  zero data ever leaves the browser" story completely clean, which also
-  answers the required data/cost section for free.
+- **CV approach:** classical background subtraction (median-of-frames
+  background model) + blob extraction, masked to the platform ROI (this is
+  what rejects the cable/hardware visible outside the platform edge in
+  `test51`). Chosen over an ONNX segmentation model or a hosted vision API
+  because the sample frames are a genuinely easy classical-CV case (dark,
+  high-contrast mouse, static camera, static background) — no GPU, nothing
+  downloaded, zero data leaving the browser.
+- **CV engine (revised 2026-09-01):** pure TypeScript in `src/core/cv/`,
+  behind a `Detector` interface, rather than OpenCV.js as originally decided.
+  The operations needed (median background, abs-diff, Otsu threshold,
+  morphological open, connected components, centroid, PCA axis) are a few
+  hundred lines of pure functions that unit-test directly on synthetic frames.
+  **OpenCV.js is not ruled out** — the interface exists so an OpenCV backend
+  can be implemented and compared on identical frames. Note for future
+  sessions: OpenCV.js's size is *not* a violation of the brief's "nothing to
+  install" requirement (it is a cached static asset, not an installation);
+  do not repeat that argument.
+- **Frame decoding:** WebCodecs `VideoDecoder`, fed by mp4box demuxing (the
+  same parser already used for the timebase), with a playback-capture fallback
+  for browsers without WebCodecs. Seek-and-draw per frame is far too slow —
+  `test50` is 5539 frames — and playback capture is real-time-bound and can
+  drop frames, which is a correctness problem, not just a slow one.
+- **Lost vs in-hole policy:** conservative. A vanished blob is only called
+  `OCCLUDED_IN_HOLE` on strong evidence (near a hole ROI *and* shrinking
+  beforehand); ambiguous disappearances are `LOST` and flagged for review. An
+  honest gap beats a beautiful wrong answer.
 - **Per-frame state machine:** `TRACKED` / `LOST` (brief gaps only, gap-fill
   method disclosed and visible) / `OCCLUDED_IN_HOLE` (blob vanished near a
   hole ROI — a real event, never interpolated) / `IN_ESCAPE_BOX`.
