@@ -18,6 +18,9 @@ jobs:
       # `npm ci` installs exactly what package-lock.json pins, which is the
       # same guarantee the README promises for a cold clone.
       - run: npm ci
+      # The timebase tests assert measured ground truth against the real
+      # clips, which are not committed (see .gitignore).
+      - run: npm run fetch:samples
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -33,6 +36,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # The timebase tests assert measured ground truth against the real
+      # clips, which are not committed (see .gitignore).
+      - run: npm run fetch:samples
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7

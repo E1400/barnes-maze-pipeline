@@ -61,13 +61,25 @@ Lint, typecheck, unit tests, build, and the end-to-end test all run in CI on
 every push — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 The sample videos are not committed here (they're large, and they belong to
-the take-home repo). Download `test50`, `test51`, and `test53` from
-[salk-airc/rse-takehome-2026](https://github.com/salk-airc/rse-takehome-2026/tree/main/data/barnes-maze)
-and drag them into the app.
+the take-home repo). To use the app, download `test50`, `test51`, and `test53`
+from [salk-airc/rse-takehome-2026](https://github.com/salk-airc/rse-takehome-2026/tree/main/data/barnes-maze)
+and drag them in.
+
+To run the full test suite you need them on disk, because the timebase tests
+assert measured ground truth against the real files:
+
+```bash
+npm run fetch:samples   # downloads the three clips into data/barnes-maze/
+```
+
+Without them, those tests skip rather than silently pass; CI always fetches
+them, so the ground-truth assertions are always enforced there.
 
 ## What it does
 
-1. Load one or more maze videos (drag and drop).
+1. Load one or more maze videos (drag and drop). Each file's frame rate,
+   frame count, and duration are read from the MP4 container and shown, so you
+   can see the timing was measured rather than assumed.
 2. Define the platform boundary, the 20 holes, and the target hole — a
    handful of clicks, not twenty.
 3. Automatic tracking of the animal's position, entirely in your browser.
@@ -81,6 +93,21 @@ and drag them into the app.
 
 TODO — fill in as real scope decisions get made during the build. Keep this
 concrete ("X because Y"), not aspirational.
+
+## How the frame timing is read
+
+`HTMLVideoElement` exposes a duration and nothing else — no frame rate, no
+frame count. Dividing frame count by duration looks like measurement but gives
+15.005 fps for `test51.mp4`, which rounds to "15" and is precisely the wrong
+answer; the file is really 15000/1001 ≈ 14.985. All three sample clips also
+have *variable* frame timing, so no single constant interval describes them.
+
+So the app parses each MP4's `stts` table with mp4box.js, builds exact
+per-frame presentation times by cumulative sum of integer ticks, and reports
+the nominal rate as an exact rational (`30/1`, `15000/1001`) rather than a
+float. Every latency measure is computed from those per-frame times, not from
+`index / fps`, and the loader shows the per-file jitter instead of hiding it.
+Measured ground truth and the reasoning: [`docs/timebase-findings.md`](docs/timebase-findings.md).
 
 ## Known limitations
 
@@ -111,6 +138,7 @@ src/workers/  OpenCV.js tracking worker
 src/state/    IndexedDB persistence
 src/ui/       React components
 src/io/       CSV/XLSX export and the project-file schema
+scripts/      helper scripts (fetching the sample clips)
 tests/e2e/    Playwright end-to-end tests
 demo-outputs/ committed real outputs for test50 / test51 / test53
 docs/         build plan and an archived copy of the take-home brief

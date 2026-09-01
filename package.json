@@ -15,9 +15,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "fetch:samples": "bash scripts/fetch-sample-videos.sh"
   },
   "dependencies": {
+    "mp4box": "^2.4.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

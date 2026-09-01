@@ -98,6 +98,12 @@ just change code silently, when a decision changes.
 - **Nose vs. body centroid:** morphological opening to strip the thin tail
   before computing the body blob; fit an ellipse; nose = the leading extremum
   along the direction of travel.
+- **Container parsing:** `mp4box.js` (`mp4box` on npm, pinned) reads the
+  `mdhd` timescale and full `stts` table. `src/core/timebase.ts` builds exact
+  per-frame times from the cumulative tick sum and reports nominal fps as a
+  reduced rational pair. Ground-truth unit tests run against the real clips,
+  which `npm run fetch:samples` downloads (CI runs it; the tests skip loudly
+  when the files are absent rather than passing vacuously).
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   parameters) — a refresh must never lose annotation work.
 - **Export:** SheetJS for CSV/XLSX.
