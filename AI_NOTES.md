@@ -133,6 +133,18 @@ Python with no dependencies, so the numbers the unit tests will assert come
 from the files themselves rather than from documentation or from a model. That
 is what surfaced the variable frame timing, which neither source mentions.
 
+**ROI editor (this commit).** Two things I did not take on faith. First, the
+generated ring: instead of eyeballing an overlay that literally covers the
+holes it is meant to land on, I sampled frame luminance at all 20 generated
+positions and compared to the platform mean — every one landed 25–80 levels
+darker than the surrounding surface, i.e. on an actual hole, from three
+eyeballed clicks and no nudging. Second, an end-to-end test caught a real
+autosave bug rather than a test-harness problem: the ROI save was a plain
+debounce, so *every* edit cleared the pending timer and a user editing
+continuously could go arbitrarily long with nothing written, losing it by
+closing the tab. Fixed with a maximum delay — coalesce rapid edits, but never
+postpone a write more than 750 ms past the first unsaved change.
+
 **Test/CI scaffold (this commit).** Ran every script end to end rather than
 assuming the config was right: `npm run typecheck`, `npm test` (2 passing),
 `npm run build`, `npm run lint` (probed as described above), and

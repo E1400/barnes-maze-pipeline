@@ -104,6 +104,13 @@ just change code silently, when a decision changes.
   reduced rational pair. Ground-truth unit tests run against the real clips,
   which `npm run fetch:samples` downloads (CI runs it; the tests skip loudly
   when the files are absent rather than passing vacuously).
+- **ROI editor:** three clicks (platform centre, platform edge, one hole)
+  generate the whole ring; the clicked hole fixes both ring radius and
+  rotation, so hole 0 lands where the user clicked. Holes are stored
+  materialized, not recomputed, so hand nudges survive; `nudgedHoles` records
+  which ones a human moved. Changing a ring parameter regenerates and clears
+  nudges, and says so. Overlay is SVG sharing one viewBox with the frame, so
+  click coordinates need no scaling maths and the whole thing scales together.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   parameters) — a refresh must never lose annotation work.
 - **Export:** SheetJS for CSV/XLSX.

@@ -4,6 +4,7 @@
  * added later is a migration path that starts by discarding someone's work.
  */
 
+import type { RoiDefinition } from '../core/roi.ts'
 import type { Timebase } from '../core/timebase.ts'
 
 /**
@@ -11,11 +12,18 @@ import type { Timebase } from '../core/timebase.ts'
  * `migrations.ts`. This is the IndexedDB `version`, so bumping it triggers
  * `onupgradeneeded`.
  */
-export const DB_VERSION = 1
+export const DB_VERSION = 2
 
 export const DB_NAME = 'barnes-maze-pipeline'
 
 export const STORE_VIDEOS = 'videos'
+/** One ROI definition per video, keyed by video id. */
+export const STORE_ROIS = 'rois'
+/** Small key/value store for cross-video settings, e.g. the ROI template. */
+export const STORE_SETTINGS = 'settings'
+
+/** Key under which the reusable ROI template lives in STORE_SETTINGS. */
+export const KEY_ROI_TEMPLATE = 'roiTemplate'
 
 /**
  * A video the user has loaded, with everything needed to redisplay it after a
@@ -43,4 +51,25 @@ export type StoredVideoSummary = Omit<StoredVideo, 'blob'>
 
 export function videoId(file: { name: string; size: number; lastModified: number }): string {
   return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+/** A video's ROI, as stored. Keyed by the video it belongs to. */
+export interface StoredRoi {
+  readonly videoId: string
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly roi: RoiDefinition
+}
+
+/**
+ * The ROI carried over to the next video loaded. A facility films the same rig
+ * repeatedly, so the ring from the last video is nearly always a better
+ * starting point than three fresh clicks -- the user nudges from there.
+ */
+export interface StoredRoiTemplate {
+  readonly key: typeof KEY_ROI_TEMPLATE
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly sourceVideoName: string
+  readonly roi: RoiDefinition
 }

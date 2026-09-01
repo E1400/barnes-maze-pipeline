@@ -7,7 +7,7 @@
  * must never drop a store that holds user work.
  */
 
-import { DB_VERSION, STORE_VIDEOS } from './schema.ts'
+import { DB_VERSION, STORE_ROIS, STORE_SETTINGS, STORE_VIDEOS } from './schema.ts'
 
 type UpgradeStep = (db: IDBDatabase, transaction: IDBTransaction) => void
 
@@ -18,6 +18,16 @@ const STEPS: Record<number, UpgradeStep> = {
       const store = db.createObjectStore(STORE_VIDEOS, { keyPath: 'id' })
       // Lists are shown newest-first; an index avoids sorting the blobs.
       store.createIndex('addedAt', 'addedAt', { unique: false })
+    }
+  },
+  // v2 adds ROI definitions and the cross-video ROI template. Purely additive:
+  // a user who loaded videos under v1 keeps them and simply has no ROIs yet.
+  2: (db) => {
+    if (!db.objectStoreNames.contains(STORE_ROIS)) {
+      db.createObjectStore(STORE_ROIS, { keyPath: 'videoId' })
+    }
+    if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+      db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' })
     }
   },
 }

@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatFps, readTimebase } from '../core/timebase.ts'
 import { deleteVideo, listVideos, putVideo } from '../state/videoStore.ts'
+import { deleteRoi } from '../state/roiStore.ts'
 import { DB_VERSION, videoId } from '../state/schema.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 
@@ -32,7 +33,12 @@ function formatSize(bytes: number): string {
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`
 }
 
-export default function VideoLoader() {
+interface Props {
+  readonly selectedVideoId: string | null
+  readonly onSelectVideo: (video: StoredVideoSummary) => void
+}
+
+export default function VideoLoader({ selectedVideoId, onSelectVideo }: Props) {
   const [videos, setVideos] = useState<StoredVideoSummary[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [status, setStatus] = useState('')
@@ -120,6 +126,7 @@ export default function VideoLoader() {
 
   const onRemove = useCallback(async (video: StoredVideoSummary) => {
     await deleteVideo(video.id)
+    await deleteRoi(video.id)
     setVideos(await listVideos())
     setStatus(`Removed ${video.name}.`)
   }, [])
@@ -199,7 +206,12 @@ export default function VideoLoader() {
           </thead>
           <tbody>
             {videos.map((video) => (
-              <tr key={video.id} data-testid="video-row">
+              <tr
+                key={video.id}
+                data-testid="video-row"
+                aria-current={video.id === selectedVideoId ? 'true' : undefined}
+                className={video.id === selectedVideoId ? 'selected-row' : undefined}
+              >
                 <th scope="row">
                   {video.name}
                   <span className="muted"> ({formatSize(video.size)})</span>
@@ -220,7 +232,10 @@ export default function VideoLoader() {
                     'constant'
                   )}
                 </td>
-                <td>
+                <td className="row-actions">
+                  <button type="button" onClick={() => onSelectVideo(video)}>
+                    Define maze<span className="visually-hidden"> for {video.name}</span>
+                  </button>
                   <button type="button" onClick={() => void onRemove(video)}>
                     Remove<span className="visually-hidden"> {video.name}</span>
                   </button>
