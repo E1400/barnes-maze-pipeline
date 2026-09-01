@@ -1,7 +1,16 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const PORT = 4173
-const BASE_URL = `http://localhost:${PORT}`
+const ORIGIN = `http://localhost:${PORT}`
+
+// Must match `base` in vite.config.ts. GitHub Pages serves this project from
+// /<repo>/, and the preview server mirrors that. Pointing baseURL at the base
+// path (rather than the origin) keeps the tests on the same URL production
+// serves: `vite preview` happens to 302 from the origin root to the base path,
+// but GitHub Pages does not, so relying on that redirect would test a path
+// that only exists locally.
+const BASE_PATH = '/barnes-maze-pipeline/'
+const BASE_URL = `${ORIGIN}${BASE_PATH}`
 
 // End-to-end smoke coverage runs against the production build, because that
 // is what actually ships to GitHub Pages.

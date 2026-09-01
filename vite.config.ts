@@ -8,6 +8,9 @@ const pkg = JSON.parse(readFileSync('./package.json', 'utf8')) as {
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages serves project sites from /<repo>/, so assets must be
+  // requested from there and not from the domain root.
+  base: '/barnes-maze-pipeline/',
   plugins: [react()],
   // Exports have to carry the version of the tool that produced them, so the
   // app reads it from package.json at build time rather than duplicating it.

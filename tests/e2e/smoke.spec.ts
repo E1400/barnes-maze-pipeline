@@ -10,11 +10,24 @@ test('app shell loads', async ({ page }) => {
   })
   page.on('pageerror', (error) => consoleErrors.push(error.message))
 
-  await page.goto('/')
+  await page.goto('./')
 
   await expect(
     page.getByRole('heading', { name: 'Barnes Maze Analysis Pipeline', level: 1 }),
   ).toBeVisible()
   await expect(page).toHaveTitle(/Barnes Maze Analysis Pipeline/)
+
+  // Guards the `base` setting in vite.config.ts. A missing base is invisible
+  // locally -- the preview server's SPA fallback serves the page and the
+  // assets resolve from the root anyway -- but on GitHub Pages, which serves
+  // this project from /barnes-maze-pipeline/, root-relative asset URLs 404
+  // and the deployed page renders blank. The asset URL is the only local
+  // symptom, so assert on it directly.
+  const moduleSrc = await page
+    .locator('script[type="module"]')
+    .first()
+    .getAttribute('src')
+  expect(moduleSrc).toContain('/barnes-maze-pipeline/assets/')
+
   expect(consoleErrors).toEqual([])
 })

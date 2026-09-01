@@ -55,7 +55,10 @@ to talmo@salk.edu (add `talmo` as a collaborator if private).
 - **Real-world units:** calibrate px→cm from a user-entered platform diameter.
   Path length in pixels is not publishable.
 - **Timebase from each file's own container metadata**, never an assumed fps
-  — `test51.mp4` is 15000/1001 ≈ 14.985 fps, not 15.
+  — `test51.mp4` is 15000/1001 ≈ 14.985 fps, not 15. All three clips have
+  *variable* frame timing in their `stts` tables, and `frameCount / duration`
+  gives a plausible wrong answer (15.005 for `test51`). Measured ground truth
+  and the required approach: [`docs/timebase-findings.md`](docs/timebase-findings.md).
 - **Visualizations, generously** — trajectory overlays, path plots colored by
   time, occupancy heatmaps, hole-visit rasters, learning curves, cohort
   comparisons — exportable, colorblind-safe, legible in grayscale.
@@ -158,6 +161,17 @@ from the README alone.)
   explicitly asks to see them.
 - Real, incremental commit history — no squashing the project into one
   commit.
+- **Log every time Elvis overrides a Claude proposal**, in the "Where the
+  human overrode the model" section of `AI_NOTES.md`, at the moment it
+  happens — not reconstructed later. Applies to any session, terminal or
+  chat. Record what was proposed, what Elvis decided instead, the reasoning,
+  and who turned out to be right. This is a deliberate record of where the
+  project diverged from model judgment; the brief asks for real disagreement
+  moments, and a human overruling the model is the most informative kind.
+- When proposing a preemptive fix, state whether the failure it prevents has
+  been **demonstrated** (observed in this repo) or **predicted** (pattern
+  from training data). Elvis calibrates on that distinction — don't blur it,
+  and don't present a framework/template default as a bespoke decision.
 - Milestone order (cut from the bottom if time runs short): scaffold → ROI
   editor → CV tracking core → cleanup/correction UI → event detection &
   measures → visualization & export → compliance & ship. Full detail in

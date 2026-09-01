@@ -47,7 +47,70 @@ was wrong about it, what the tell was, how you caught it.
    code is not evidence a check ran, and this repo's whole premise is that
    silent success is the failure mode to distrust.
 
-4. <!-- next real one goes here -->
+4. **"Parse the container for the fps" was right, but the shape I assumed was wrong.**
+   Recommending mp4box.js for the timebase, I described `test51` as a
+   timescale of 15000 with a sample delta of 1001 — implicitly one `stts`
+   entry, one constant frame rate. Parsing the actual file: 98 `stts` entries,
+   with 8.6% of frames at a delta other than 1001. All three clips are like
+   this (test50: 951 entries, test53: 152) — the upstream re-encode preserved
+   duration and frame count exactly while jittering individual frame deltas.
+   The tell was checking rather than asserting: the numbers came out of the
+   file, not out of the recommendation. It matters because the obvious
+   fallback — frame count over duration — yields 15.005 fps for `test51`,
+   which rounds to "15" and lands on precisely the error the brief warns
+   about, by a route that looks like measurement. Written up in
+   `docs/timebase-findings.md`. Generalizes: "read it from the file" is only
+   half an instruction if you have also guessed what the file contains.
+
+5. <!-- next real one goes here -->
+
+## Where the human overrode the model
+
+Elvis's calls that went against what Claude proposed or assumed, logged at the
+moment they happened. Separate from the section above on purpose: those are
+the model being *wrong*; these are the model being *overruled*, which is a
+different and more interesting record. For each: what Claude proposed, what
+Elvis decided instead, the reasoning, and — once it's known — who was right.
+
+1. **Asked for provenance before agreeing to build.** Claude finished the
+   milestone-1 audit and moved straight to "approve this and start step 1."
+   Elvis stopped it and asked where each decision actually came from — brief,
+   Vite template, convention, observed bug, or model guess. That surfaced a
+   real mislabel: Claude had explained the three-tsconfig split and the
+   strictness flags as deliberate choices for this project when they were
+   `npm create vite` defaults, changed by two lines total. The standing
+   instruction out of it: when a preemptive fix is proposed, say whether the
+   failure it prevents has been *demonstrated* or only *predicted*.
+
+2. **"Setting `base` will break the Playwright e2e — fix it." It didn't.**
+   The instruction came with a specific predicted failure: once
+   `base: '/barnes-maze-pipeline/'` is set, `vite preview` serves under that
+   path, so `page.goto('/')` 404s. It also came with "verify it actually fails
+   before you fix it." Verified, and the prediction was wrong twice over.
+   Vite 8's preview server 302-redirects `/` to the base path, so the original
+   test passed untouched; and when I stripped `base` back out to check the
+   test could detect its absence, the test *still* passed, because preview's
+   SPA fallback serves `index.html` for any unknown path and the root-relative
+   assets resolve fine locally.
+
+   The underlying concern was real and the `base` setting was necessary — a
+   wrong base renders a blank page on Pages. But the symptom is invisible to a
+   browser pointed at a local preview server: the *only* local difference is
+   the asset URL in the served HTML. So the fix isn't the one specified.
+   `baseURL` now points at the base path (production doesn't have preview's
+   redirect), and the smoke test asserts the module script src starts with
+   `/barnes-maze-pipeline/assets/`. Confirmed load-bearing by removing `base`
+   and watching it fail: `Expected substring: "/barnes-maze-pipeline/assets/"`,
+   `Received string: "/assets/index-BGlXgxYQ.js"`.
+
+   Right about the risk, wrong about the mechanism — and the "verify it fails
+   first" instruction is what surfaced the difference. A confident,
+   specific-sounding failure prediction is still a hypothesis; the version of
+   this I'd have written without that instruction would have "fixed" a
+   non-existent 404 and shipped a test that passes whether or not `base` is
+   set.
+
+3. <!-- next real one goes here -->
 
 ## What I checked before believing it worked
 
@@ -62,6 +125,13 @@ actual `engines` field of every installed tool rather than writing a plausible
 Node version into the README from memory — the real floor is
 `^20.19.0 || >=22.12.0`, not the "Node 20+" first drafted, which would have
 been wrong for Node 20.0–20.18.
+
+**Timebase ground truth (2026-09-01).** Did not take the upstream README's
+frame-rate table at face value, and did not take my own recommendation at face
+value either: parsed the `moov`/`stts` atoms of all three clips directly in
+Python with no dependencies, so the numbers the unit tests will assert come
+from the files themselves rather than from documentation or from a model. That
+is what surfaced the variable frame timing, which neither source mentions.
 
 **Test/CI scaffold (this commit).** Ran every script end to end rather than
 assuming the config was right: `npm run typecheck`, `npm test` (2 passing),

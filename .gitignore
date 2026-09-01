@@ -13,3 +13,9 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# Sample videos — deliberately NOT committed. The brief asks submissions to
+# link to the source repo rather than copy the clips in. Fetch them with:
+#   git clone --depth 1 https://github.com/salk-airc/rse-takehome-2026 /tmp/th \
+#     && cp /tmp/th/data/barnes-maze/*.mp4 data/barnes-maze/
+data/barnes-maze/

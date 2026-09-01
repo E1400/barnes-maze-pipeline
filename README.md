@@ -1,6 +1,6 @@
 # Barnes Maze Analysis Pipeline
 
-**Live demo:** TODO — add GitHub Pages URL before submission
+**Live demo:** https://e1400.github.io/barnes-maze-pipeline/
 **Demo video (2–3 min):** TODO — all three sample videos, start to finish
 
 A browser-based tool that turns a folder of Barnes maze behavior videos into
@@ -21,6 +21,14 @@ a notebook, or a command line.
 
 **To just use it:** open the live demo URL above. There is nothing to install
 — no Node, no Python, no account.
+
+The site is published by
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to
+`main`, from the same `dist/` that `npm run build` produces locally. It serves
+from `/barnes-maze-pipeline/`, which is why `base` is set in
+[`vite.config.ts`](vite.config.ts); the end-to-end test asserts the built asset
+URLs carry that prefix, because a wrong base is invisible locally and renders a
+blank page in production.
 
 **To run it from source** you need Node `^20.19` or `>=22.12` (what the Vite 8
 toolchain requires). This repo is developed and verified against Node 24,
