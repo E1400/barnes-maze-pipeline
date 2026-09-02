@@ -76,15 +76,27 @@ export function openFrameSource(blob: Blob, timebase: Timebase): Promise<FrameSo
       // dutifully (and pointlessly) visited first. Only the most recent
       // request always actually seeks, which is what makes the video track
       // the cursor live.
+      //
+      // "Superseded" is judged by *frame index*, not call order: two
+      // independent callers asking for the same frame close together (e.g.
+      // the display effect and the auto-detect effect both grabbing frame 0
+      // when the editor first opens) must not starve one of them. An earlier
+      // token-identity check treated the second caller's request as
+      // superseding the first's even though they wanted the same frame,
+      // which skipped the first's seek entirely -- its caller then read
+      // whatever the canvas held before any draw had happened (nothing),
+      // silently showing a black frame while the second caller got real
+      // pixels. Comparing frame indices instead means concurrent requests
+      // for the same frame both still get a real seek.
       let queue: Promise<void> = Promise.resolve()
-      let latestToken = 0
+      let latestRequestedFrame = -1
       const drawFrame = (frameIndex: number): Promise<void> => {
-        const token = ++latestToken
+        latestRequestedFrame = frameIndex
         const run = queue.then(
           () =>
             new Promise<void>((settle, fail) => {
               if (closed) return fail(new Error('Frame source is closed'))
-              if (token !== latestToken) return settle() // superseded; skip the seek
+              if (frameIndex !== latestRequestedFrame) return settle() // superseded; skip the seek
               const target = seekTimeForFrame(timebase, frameIndex)
               const onSeeked = () => {
                 video.removeEventListener('seeked', onSeeked)

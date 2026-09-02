@@ -185,6 +185,35 @@ test('a target hole can be set by typing its number, without clicking a hole fir
   await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(1)
 })
 
+test('the displayed frame shows real pixel data, not a blank canvas', async ({ page }) => {
+  // Regression test: the auto-detect effect and the display effect both grab
+  // frame 0 concurrently when the editor opens. An earlier version of the
+  // seek-coalescing logic (added to make scrubbing live) judged which
+  // request was "superseded" by call order rather than by frame index, so
+  // one of these two concurrent same-frame requests could be skipped before
+  // it ever seeked -- its caller then read an untouched canvas and rendered
+  // solid black, even though detection (fed by the other request) succeeded
+  // with real geometry moments later. A JPEG data URL existing isn't enough
+  // to catch this; the pixels themselves have to be checked.
+  const svg = await openEditor(page)
+  const meanLuminance = await svg.evaluate(async (svgEl) => {
+    const img = svgEl.querySelector('image')!
+    const bitmap = new Image()
+    bitmap.src = img.getAttribute('href')!
+    await bitmap.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.naturalWidth
+    canvas.height = bitmap.naturalHeight
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(bitmap, 0, 0)
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    let sum = 0
+    for (let i = 0; i < data.length; i += 4) sum += (data[i]! + data[i + 1]! + data[i + 2]!) / 3
+    return sum / (data.length / 4)
+  })
+  expect(meanLuminance).toBeGreaterThan(20)
+})
+
 test('manual placement is still available as a fallback', async ({ page }) => {
   const svg = await openEditor(page)
   await page.getByRole('button', { name: 'Place by hand' }).click()
