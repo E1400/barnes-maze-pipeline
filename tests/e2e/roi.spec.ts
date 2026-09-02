@@ -141,6 +141,50 @@ test('the scrubber jumps to an exact frame and pins it', async ({ page }) => {
   await expect(page.getByLabel(/^Frame, 1 to 741$/)).toHaveValue('316')
 })
 
+test('the displayed frame updates continuously while scrubbing, not only on release', async ({
+  page,
+}) => {
+  await openEditor(page)
+  const range = page.getByLabel(/^Frame, 1 to 741$/)
+  const readHref = () =>
+    page.evaluate(() => document.querySelector('svg.roi-canvas image')!.getAttribute('href'))
+
+  // The scrubber sits below the frame image; at the default test viewport
+  // height its bounding box can fall outside the visible page, and mouse
+  // coordinates outside the viewport don't hit anything.
+  await range.scrollIntoViewIfNeeded()
+  const box = (await range.boundingBox())!
+  await page.mouse.move(box.x + 2, box.y + box.height / 2)
+  await page.mouse.down()
+  const seenDuringDrag = new Set<string | null>()
+  for (let i = 1; i <= 8; i++) {
+    await page.mouse.move(box.x + (box.width * i) / 8, box.y + box.height / 2, { steps: 3 })
+    await page.waitForTimeout(60)
+    seenDuringDrag.add(await readHref())
+  }
+  await page.mouse.up()
+
+  // The whole point: several distinct frames must have been drawn while the
+  // mouse was still down, not just the one at the end of the drag.
+  expect(seenDuringDrag.size).toBeGreaterThan(4)
+})
+
+test('a target hole can be set by typing its number, without clicking a hole first', async ({
+  page,
+}) => {
+  await openEditor(page)
+  await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(0)
+
+  await page.getByLabel('Target hole number').fill('12')
+  await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(1)
+  const targetLabel = page.locator('text.roi-hole-label', { hasText: /^T$/ })
+  await expect(targetLabel).toHaveCount(1)
+
+  // Retypes to a different hole rather than accumulating targets.
+  await page.getByLabel('Target hole number').fill('5')
+  await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(1)
+})
+
 test('manual placement is still available as a fallback', async ({ page }) => {
   const svg = await openEditor(page)
   await page.getByRole('button', { name: 'Place by hand' }).click()

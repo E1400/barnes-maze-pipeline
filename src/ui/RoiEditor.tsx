@@ -119,23 +119,35 @@ export default function RoiEditor({ video }: Props) {
   }, [video.id])
 
   // Show the requested frame.
+  //
+  // Guarded by session (source) liveness only, not by frameIndex: frameSource
+  // resolves grabDataUrl calls strictly in request order, so during a scrub
+  // every resolution can safely update the displayed frame as it lands rather
+  // than being discarded in favour of only the very last one. Discarding
+  // intermediate results is what previously made the video look like it only
+  // updated after the cursor was released -- frameSource was already
+  // producing frames along the way, this effect was just throwing them out.
+  const sessionAlive = useRef(true)
+  useEffect(() => {
+    sessionAlive.current = true
+    return () => {
+      sessionAlive.current = false
+    }
+  }, [source])
+
   useEffect(() => {
     if (!source) return
-    let cancelled = false
     void source
       .grabDataUrl(frameIndex)
       .then((url) => {
-        if (!cancelled) {
+        if (sessionAlive.current) {
           setFrameUrl(url)
           setError('')
         }
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError((cause as Error).message)
+        if (sessionAlive.current) setError((cause as Error).message)
       })
-    return () => {
-      cancelled = true
-    }
   }, [source, frameIndex])
 
   const runDetection = useCallback(
@@ -655,6 +667,32 @@ export default function RoiEditor({ video }: Props) {
                   </li>
                 </ul>
               )}
+
+              <h3>Escape target</h3>
+              <label>
+                Target hole number
+                <input
+                  type="number"
+                  min={1}
+                  max={roi.holes.length}
+                  value={roi.targetHole === null ? '' : roi.targetHole + 1}
+                  placeholder="none"
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    if (raw === '') {
+                      setRoi(setTargetHole(roi, null))
+                      return
+                    }
+                    const n = Math.round(Number(raw))
+                    if (Number.isFinite(n) && n >= 1 && n <= roi.holes.length) {
+                      setRoi(setTargetHole(roi, n - 1))
+                    }
+                  }}
+                />
+              </label>
+              <p className="hint">
+                Set directly by number, or select a hole below and press T.
+              </p>
 
               <h3>Selected hole</h3>
               {selectedHole === null ? (

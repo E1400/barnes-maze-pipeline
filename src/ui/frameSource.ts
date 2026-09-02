@@ -67,15 +67,24 @@ export function openFrameSource(blob: Blob, timebase: Timebase): Promise<FrameSo
         return
       }
 
-      // Seeks are serialised: overlapping currentTime writes on one element
-      // resolve unpredictably, and a frame drawn for the wrong index is worse
-      // than a slow one.
+      // Seeks are serialised (overlapping currentTime writes on one element
+      // resolve unpredictably), but a request superseded before its turn comes
+      // up is skipped rather than seeked to. Without that, dragging the
+      // scrubber queues one real seek per frame crossed, and the video only
+      // catches up to the cursor after the drag ends -- it looks like nothing
+      // updates until release, when really every intermediate frame is being
+      // dutifully (and pointlessly) visited first. Only the most recent
+      // request always actually seeks, which is what makes the video track
+      // the cursor live.
       let queue: Promise<void> = Promise.resolve()
+      let latestToken = 0
       const drawFrame = (frameIndex: number): Promise<void> => {
+        const token = ++latestToken
         const run = queue.then(
           () =>
             new Promise<void>((settle, fail) => {
               if (closed) return fail(new Error('Frame source is closed'))
+              if (token !== latestToken) return settle() // superseded; skip the seek
               const target = seekTimeForFrame(timebase, frameIndex)
               const onSeeked = () => {
                 video.removeEventListener('seeked', onSeeked)

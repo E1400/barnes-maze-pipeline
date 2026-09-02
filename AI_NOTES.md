@@ -104,7 +104,24 @@ was wrong about it, what the tell was, how you caught it.
    interactive elements is invisible in a screenshot and only shows up when
    something actually tries to click the covered one.
 
-8. <!-- next real one goes here -->
+8. **Fixed the described bug's mechanism, and there was a second, cooperating bug behind it.**
+   Asked to fix "the video only updates once you let go of the scrubber."
+   Found and fixed the frame-decode queue serializing a real seek per frame
+   crossed during a drag (fine to fix in isolation — it explains a laggy
+   catch-up). But testing the fix live still showed a single jump at release,
+   not a live update. The second cause: the effect that displays a fetched
+   frame discarded every resolved frame except the very last one (a `cancelled`
+   flag keyed to `frameIndex`, meant to avoid setting stale state, but with
+   the side effect of throwing away every legitimately-decoded intermediate
+   frame during a drag). Fixing only the queue would have left the reported
+   symptom unchanged. Caught by actually driving a mouse-drag in a live
+   browser and reading the displayed frame mid-drag rather than trusting that
+   the queue fix was sufficient because it was clearly a real bug. Generalizes:
+   a bug report names a symptom, not a root cause, and a plausible-looking fix
+   that doesn't reproduce-then-fix can land next to the real cause instead of
+   on it.
+
+9. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 
