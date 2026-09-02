@@ -163,6 +163,33 @@ just change code silently, when a decision changes.
   no single right answer... the threshold must be visible and adjustable"),
   its own tunable threshold UI — Elvis chose to keep it as its own future
   milestone (event detection) rather than a quick addition here.
+- **Manual correction (implemented 2026-09-03, `src/ui/CorrectionViewer.tsx`,
+  step 4) is an overlay, not a mutation.** `src/core/corrections.ts` keeps a
+  separate `Map<frameIndex, PositionCorrection>`; the tracker's own
+  `FrameTrack` array is never edited in place. `applyCorrections()` merges
+  the two for display, tagging each frame `isCorrected` so a corrected point
+  is always visually distinct (dashed yellow outline) and always revertible
+  (delete the map entry, the original detection is still there underneath).
+  This is what satisfies both non-negotiables — "corrections survive a
+  reload" and "visually obvious which values are automatic vs.
+  human-touched" — without needing to touch the tracking pipeline itself.
+  **Scope, deliberately narrow (Elvis's choice):** a correction repositions a
+  point on a frame already `TRACKED` by the algorithm. It does not relabel a
+  frame's *state* — a `LOST`/`OCCLUDED_IN_HOLE` frame shows its state but has
+  no draggable point and says so plainly, rather than silently doing
+  nothing. State relabeling and manual hole/escape-event marking are real,
+  planned follow-up work, not forgotten scope.
+  Frame navigation reuses `FrameScrubber` unchanged. Clicking near the
+  plotted trajectory jumps to that frame — implemented as a single click
+  handler doing a nearest-point scan over all `TRACKED` centroids (not one
+  hit-target `<circle>` per frame, which would mean thousands of extra DOM
+  nodes on `test50`'s 5539-frame track) — matching within `PATH_CLICK_TOLERANCE`
+  (14 view units) before it jumps, so a stray click on the frame image
+  doesn't teleport the scrubber. The viewer starts at a smaller size
+  (`max-width: 22rem`) with an "Expand viewer" toggle up to its native
+  640px — not a fullscreen/modal experience, which wasn't asked for and adds
+  real complexity (portals, escape-key handling, focus trapping) this pass
+  didn't need.
 - **Two full decode passes per video** (`src/core/cv/pipeline.ts`): one to
   build the background model from ~30 frames spread across the whole clip,
   one to run detection/tracking on every frame. The background model needs

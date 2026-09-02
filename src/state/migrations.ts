@@ -7,7 +7,14 @@
  * must never drop a store that holds user work.
  */
 
-import { DB_VERSION, STORE_ROIS, STORE_SETTINGS, STORE_TRACKS, STORE_VIDEOS } from './schema.ts'
+import {
+  DB_VERSION,
+  STORE_CORRECTIONS,
+  STORE_ROIS,
+  STORE_SETTINGS,
+  STORE_TRACKS,
+  STORE_VIDEOS,
+} from './schema.ts'
 
 type UpgradeStep = (db: IDBDatabase, transaction: IDBTransaction) => void
 
@@ -35,6 +42,12 @@ const STEPS: Record<number, UpgradeStep> = {
   3: (db) => {
     if (!db.objectStoreNames.contains(STORE_TRACKS)) {
       db.createObjectStore(STORE_TRACKS, { keyPath: 'videoId' })
+    }
+  },
+  // v4 adds manual corrections. Purely additive, same reasoning as v2/v3.
+  4: (db) => {
+    if (!db.objectStoreNames.contains(STORE_CORRECTIONS)) {
+      db.createObjectStore(STORE_CORRECTIONS, { keyPath: 'videoId' })
     }
   },
 }

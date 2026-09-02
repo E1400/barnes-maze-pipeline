@@ -63,13 +63,8 @@ test('runs entirely client-side, reports progress, and produces a plausible trac
   await expect(checklist).toContainText('Tracking lost: ')
   await expect(checklist).toContainText('In a hole: ')
   await expect(checklist).toContainText('Escaped: ')
-
-  // The plot exists and its path never draws through a gap -- see the CSS
-  // class on the polyline segments, which are only emitted per contiguous
-  // TRACKED run (src/ui/TrackingPanel.tsx).
-  await expect(page.locator('svg.tracking-plot')).toHaveCount(1)
-  const segmentCount = await page.locator('polyline.tracking-path').count()
-  expect(segmentCount).toBeGreaterThan(0)
+  // The trajectory plot itself (path never drawn through a gap, click to
+  // jump to a frame) lives in CorrectionViewer now -- see correction.spec.ts.
 })
 
 test('tracking results survive a reload without re-running', async ({ page }) => {

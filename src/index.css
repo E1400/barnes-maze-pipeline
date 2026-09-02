@@ -581,3 +581,64 @@ a {
   stroke: #000000;
   stroke-width: 3px;
 }
+
+/* --- Correction viewer (step 4) --- */
+
+.correction {
+  margin-top: 2.5rem;
+}
+
+.correction-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.correction-canvas {
+  display: block;
+  max-width: 22rem;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.correction-canvas--expanded {
+  max-width: 100%;
+}
+
+.correction-axis {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  paint-order: stroke;
+}
+
+.correction-point {
+  fill: #2fae4e;
+  stroke: #000000;
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.correction-point--nose {
+  fill: #47bfff;
+}
+
+.correction-point--manual {
+  stroke: #ffd400;
+  stroke-width: 3;
+  stroke-dasharray: 3 2;
+}
+
+.correction-state-badge {
+  fill: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #000000;
+  stroke-width: 4px;
+}

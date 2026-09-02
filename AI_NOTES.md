@@ -184,7 +184,22 @@ was wrong about it, what the tell was, how you caught it.
     ("Background N%" / "Tracking N%") rather than showing a bare number that
     implied one continuous count.
 
-12. <!-- next real one goes here -->
+12. **Used a ref where the working pattern next to it used state, and the viewer never appeared.**
+    Building CorrectionViewer's frame source, I stored the opened `FrameSource`
+    in a `useRef` and had a second effect check `if (!source.current) return`
+    before grabbing a frame. Opening a frame source is async; by the time that
+    second effect's synchronous body ran (in the same commit as the first
+    effect), the promise hadn't resolved, so the ref was still null -- and
+    since mutating a ref doesn't trigger a re-render, no later effect ever
+    re-checked it. The frame image, and the whole viewer gated on it, silently
+    never rendered. RoiEditor solves the identical problem with `useState` for
+    exactly this reason (state changes re-run effects that depend on it; refs
+    don't), and I had that code open in the same session -- I just didn't
+    reuse the pattern. Caught immediately by driving the real flow in a
+    browser rather than trusting the typecheck, which had nothing to say
+    about it. Fixed by switching to state, matching RoiEditor exactly.
+
+13. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 
@@ -359,3 +374,21 @@ proximity over time) and was deliberately kept out of this chunk, per
 Elvis's choice, as its own future milestone with its own adjustable
 threshold. Recorded in CLAUDE.md so the reasoning survives past this
 conversation.
+
+**Correction viewer (this branch).** Verified against a real tracked clip,
+not just component logic in isolation: tracked `test51` for real, then drove
+every claimed interaction through a live browser -- expand toggle actually
+changes rendered width (352px -> 640px, measured), clicking near the plotted
+path jumps the scrubber to a different frame, dragging the point registers a
+correction with distinct manual styling, revert clears it back to the
+automatic value, and the correction is still there (with its styling) after
+an actual page reload with a fresh point lookup rather than reusing stale
+drag coordinates from before the reload. Used `test53`'s known LOST opening
+stretch (frames 1-150, measured earlier this session) to exercise the one
+state a 100%-tracked fixture like `test51` can't: confirmed a non-TRACKED
+frame shows no draggable point and the "not built yet" note, not a silent
+no-op. Running the full e2e suite together (23 tests, several running real
+CV pipelines in parallel across 4 workers) surfaced real CPU contention that
+a 90s wait didn't budget for on a slower run; brought it in line with the
+120s margin the tracking tests already used successfully under the same
+load, rather than just re-running until it happened to pass.

@@ -1,7 +1,7 @@
 /**
  * Application shell.
  *
- * Steps 1-3 are real. The rest are placeholders until their milestone lands
+ * Steps 1-4 are real. The rest are placeholders until their milestone lands
  * -- see docs/plan.md.
  */
 
@@ -9,6 +9,7 @@ import { useState } from 'react'
 import VideoLoader from './VideoLoader.tsx'
 import RoiEditor from './RoiEditor.tsx'
 import TrackingPanel from './TrackingPanel.tsx'
+import CorrectionViewer from './CorrectionViewer.tsx'
 import { useTrackingJob } from './useTrackingJob.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { RoiDefinition } from '../core/roi.ts'
@@ -19,7 +20,6 @@ type Milestone = {
 }
 
 const REMAINING: readonly Milestone[] = [
-  { step: 'Review tracking quality and correct it by hand', status: 'not built yet' },
   { step: 'Detect hole visits and compute per-trial measures', status: 'not built yet' },
   { step: 'Visualize and export CSV / XLSX', status: 'not built yet' },
 ]
@@ -60,12 +60,18 @@ export default function App() {
             roi={roi}
             trackingJob={trackingJob}
           />
+          <CorrectionViewer
+            key={`${selected.id}-correction`}
+            video={selected}
+            roi={roi}
+            trackingJob={trackingJob}
+          />
         </>
       )}
 
       <section aria-labelledby="remaining-heading">
         <h2 id="remaining-heading">Remaining steps</h2>
-        <ol className="milestones" start={4}>
+        <ol className="milestones" start={5}>
           {REMAINING.map((milestone) => (
             <li key={milestone.step}>
               <span>{milestone.step}</span>
