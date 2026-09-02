@@ -59,6 +59,8 @@ export interface StoredRoi {
   readonly schemaVersion: number
   readonly updatedAt: number
   readonly roi: RoiDefinition
+  /** Frame indices the user pinned as worth returning to. */
+  readonly pins: readonly number[]
 }
 
 /**

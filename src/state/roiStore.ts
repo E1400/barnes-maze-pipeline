@@ -35,21 +35,30 @@ function runTransaction<T>(
   )
 }
 
-export function saveRoi(videoId: string, roi: RoiDefinition): Promise<IDBValidKey> {
+export function saveRoi(
+  videoId: string,
+  roi: RoiDefinition,
+  pins: readonly number[] = [],
+): Promise<IDBValidKey> {
   const record: StoredRoi = {
     videoId,
     schemaVersion: DB_VERSION,
     updatedAt: Date.now(),
     roi,
+    pins,
   }
   return runTransaction(STORE_ROIS, 'readwrite', (store) => store.put(record))
 }
 
-export async function loadRoi(videoId: string): Promise<RoiDefinition | null> {
+export async function loadRoi(
+  videoId: string,
+): Promise<{ roi: RoiDefinition; pins: number[] } | null> {
   const record = await runTransaction(STORE_ROIS, 'readonly', (store) =>
     store.get(videoId) as IDBRequest<StoredRoi | undefined>,
   )
-  return record?.roi ?? null
+  if (!record) return null
+  // Records written before pins existed simply have none.
+  return { roi: record.roi, pins: [...(record.pins ?? [])] }
 }
 
 export function deleteRoi(videoId: string): Promise<undefined> {

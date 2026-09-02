@@ -62,7 +62,49 @@ was wrong about it, what the tell was, how you caught it.
    `docs/timebase-findings.md`. Generalizes: "read it from the file" is only
    half an instruction if you have also guessed what the file contains.
 
-5. <!-- next real one goes here -->
+5. **`binarizeBelow` used `<` and found zero holes, on real and synthetic frames alike.**
+   Building automatic maze detection, the dark-hole finder returned nothing on
+   every test frame. `otsuThreshold` returns the *lower edge* of the optimal
+   split — on an image of holes at 55 and platform at 190 it returns exactly
+   55 — but `binarizeBelow` compared with strict `<`, which excludes every
+   hole pixel. `binarize` (the bright-feature counterpart, used for animal
+   detection) uses `>` and happened to be on the correct side of that same
+   boundary by luck of which feature is brighter. Caught by instrumenting the
+   detector step by step rather than staring at the final "0 holes found" and
+   guessing why. Fixed to `<=`, documented the convention inline, and added a
+   test that pins it: two pixels at the threshold value itself must come out
+   foreground, not background.
+
+6. **The hole count estimator was fooled by its own noise, and only real frames caught it.**
+   The first version derived hole count from the *smallest* angular gap
+   between detected holes. It passed every synthetic-frame test, then found
+   21 holes on real `test50`/`test53` frames that actually have 20 — one hole
+   had been detected as two adjacent blobs, and the resulting sliver of a gap
+   set the count. Synthetic tests never produced that artifact because I only
+   ever generated one blob per hole. Rewrote it to fit every plausible ring
+   size and take the smallest one *all* detections sit on cleanly (with an
+   occupancy floor so a couple of stray points can't masquerade as a tiny
+   ring), verified again on real frames from all three clips: 20/20 detected
+   holes landing on real holes each time. Generalizes: synthetic fixtures test
+   the algorithm's *design*, not what a real capture pipeline actually hands
+   it — both are needed, and the real ones can fail after the synthetic ones
+   are all green.
+
+7. **A drag handle sat exactly on top of hole 0 and was un-clickable.**
+   Requested drag-to-resize for the ring of holes; the resize/rotate handle
+   was placed at `center + ringRadius·(cos,sin)(rotation)` — which is the
+   *same formula* used to generate hole 0, so the handle and hole 0 occupied
+   identical coordinates, and hole 0 (painted later, so on top) ate every
+   pointer event aimed at the handle. An end-to-end test dragging the handle
+   caught it: the ring radius input never changed. Manual visual inspection
+   would likely have missed this too, since the handle circle is invisible
+   underneath the hole it's covered by. Fixed by placing the handle halfway
+   between two holes instead, which is clear of every hole regardless of
+   count or rotation. Generalizes: a coordinate collision between two
+   interactive elements is invisible in a screenshot and only shows up when
+   something actually tries to click the covered one.
+
+8. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 
@@ -168,3 +210,20 @@ dev server. The one unit test in the scaffold is deliberately about the
 build-time version injection — if that `define` wiring silently breaks, every
 exported spreadsheet ships an unattributable version number, which is exactly
 the class of quiet wrongness the brief cares about.
+
+**Automatic maze detection + editable overlay (this branch).** Extracted real
+grayscale frames from all three sample clips (via the browser's own decode
+path, not a separate tool) and ran detection against them, not just synthetic
+fixtures — which is what caught the hole-count bug in entry 6 above after the
+synthetic suite was already green. Final check on all three real clips: 20/20
+proposed holes landing on genuinely darker pixels than the platform mean, on
+every clip, with zero manual clicks. Every claimed interaction (drag the
+centre, drag the ring handle, drag a hole, type an exact frame number, pin/
+un-pin, calibrate in cm) has an end-to-end test that drives it with real
+pointer or keyboard events and asserts the resulting state — not just that a
+click handler exists. Two of those tests failed on the first pass and both
+were real product bugs (entries 6 and 7), not test mistakes; both are fixed
+and now pinned by regression tests. Manually screenshotted the finished
+editor as a last check before calling it done, rather than trusting "e2e is
+green" as the final word — the brief's whole premise is that a plausible-
+looking result is not the same as a checked one.

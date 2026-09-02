@@ -121,13 +121,37 @@ just change code silently, when a decision changes.
   reduced rational pair. Ground-truth unit tests run against the real clips,
   which `npm run fetch:samples` downloads (CI runs it; the tests skip loudly
   when the files are absent rather than passing vacuously).
-- **ROI editor:** three clicks (platform centre, platform edge, one hole)
-  generate the whole ring; the clicked hole fixes both ring radius and
-  rotation, so hole 0 lands where the user clicked. Holes are stored
-  materialized, not recomputed, so hand nudges survive; `nudgedHoles` records
-  which ones a human moved. Changing a ring parameter regenerates and clears
-  nudges, and says so. Overlay is SVG sharing one viewBox with the frame, so
-  click coordinates need no scaling maths and the whole thing scales together.
+- **ROI editor (revised 2026-09-03):** detection-first, not click-first.
+  Opening the editor runs `detectMaze` (classical CV: bright-disc platform,
+  dark roughly-circular holes, a least-squares circle fit through the
+  detected holes locates the centre, and a ring-size search recovers the hole
+  count and rotation) and proposes the whole layout with zero clicks. Manual
+  3-click placement (platform centre, platform edge, one hole) is the
+  fallback for a frame detection can't handle, reachable via "Place by hand".
+  Every part of a layout is then drag-adjustable: the centre (drags the ring
+  with it — `translateRoi`), a ring handle that stretches or rotates the ring
+  in one gesture (`scaleRing` + `rotateRing`), the platform boundary, and
+  individual holes. The ring handle sits *between* two holes, not on hole 0's
+  angle — it used to coincide exactly with hole 0's generated position and
+  was un-clickable, caught by an end-to-end drag test (AI_NOTES, "mistakes"
+  entry 7). Holes are stored materialized, not recomputed, so hand nudges
+  survive; `nudgedHoles` records which ones a human moved, and resizing the
+  ring scales existing hole positions rather than discarding nudges (only
+  changing the hole *count* regenerates and clears them, since a different
+  count has no correspondence to keep). Calibration (`Platform diameter (cm)`)
+  draws a 10 cm scale bar directly on the frame and lists every ROI dimension
+  in both px and cm, so entering a diameter visibly does something instead of
+  updating one line of sidebar text. Overlay is SVG sharing one viewBox with
+  the frame, so click/drag coordinates need no scaling maths and the whole
+  thing scales together; e2e tests account for the viewBox-vs-rendered-size
+  ratio explicitly since the layout renders the SVG smaller than its viewBox.
+- **Frame scrubber:** a real `<input type="range">` (not a custom
+  div-based slider) styled as a thick track with tick marks and a thin bar
+  thumb rather than a round knob, since a round knob covers the tick it's
+  pointing at — this needed to support frame-precise review, not just rough
+  scrubbing. Paired with an exact-frame-number entry field and a pin/unpin
+  toggle with prev-pin/next-pin navigation, so a reviewer can mark a moment
+  of interest and jump back to it without re-scrubbing.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   parameters) — a refresh must never lose annotation work.
 - **Export:** SheetJS for CSV/XLSX.
