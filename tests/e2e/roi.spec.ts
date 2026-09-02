@@ -9,7 +9,7 @@ async function openEditor(page: Page): Promise<Locator> {
   await page.goto('./')
   await page.getByLabel('Choose video files').setInputFiles(FIXTURE)
   await page.getByTestId('video-row').first().waitFor()
-  await page.getByRole('button', { name: /Define maze/ }).click()
+  await page.getByRole('button', { name: /Define maze|Review maze/ }).click()
   const svg = page.locator('svg.roi-canvas')
   await svg.waitFor({ timeout: 30_000 })
   // Detection runs on open; wait for the ring it produces.
@@ -118,7 +118,7 @@ test('the layout, target and pins survive a reload', async ({ page }) => {
     .toBeGreaterThan(saves)
 
   await page.reload()
-  await page.getByRole('button', { name: /Define maze/ }).click()
+  await page.getByRole('button', { name: /Define maze|Review maze/ }).click()
   await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
   await expect(page.locator('circle.roi-hole')).toHaveCount(20)
   await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(1)

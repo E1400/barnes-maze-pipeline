@@ -123,6 +123,46 @@ just change code silently, when a decision changes.
   progress rendered, which reads as a crash. Verified the worker actually
   solves this (not just that it runs) by instrumenting a `setInterval` tick
   counter during a real run and confirming it kept firing throughout.
+- **The Worker is owned by `App`, via `useTrackingJob`** (`src/ui/useTrackingJob.ts`),
+  not by `TrackingPanel`. It was owned by `TrackingPanel` originally, which
+  meant switching to a different video — remounting `TrackingPanel` under a
+  new `key` — terminated an in-progress run. A real, reported bug (AI_NOTES
+  mistake 11), not a hypothetical: fixed by moving the Worker's lifetime to a
+  hook that lives as long as the app does. **Only one job runs at a time by
+  design** — the user does not need concurrent tracking, and running several
+  CV pipelines at once is a real memory concern for long clips —
+  `startTracking` refuses to start a second job, and `TrackingPanel` shows a
+  clear "another video is tracking" message with its own button disabled
+  rather than queueing or silently no-op'ing.
+- **The video table (`src/ui/VideoLoader.tsx`) is the multi-video status
+  dashboard.** Elvis asked for a way to navigate/track status across videos
+  without a full per-video workspace redesign; the table already listing
+  every loaded video was the natural fit — extended with Maze
+  (Not defined / Defined) and Tracking (Not tracked / Background N% /
+  Tracking N% / Tracked) columns, sourced from `roiStore.listDefinedVideoIds`
+  and `trackStore.listTrackedVideoIds` (bulk, additive queries — no schema
+  change) plus the live `useTrackingJob` state for whichever video is
+  currently running. The background and tracking passes each report their
+  own 0–100%, so the status label names the phase explicitly ("Background
+  92%" then "Tracking 15%") rather than a bare percentage that would
+  otherwise look like it went backwards when the second pass starts over
+  from zero (caught in verification, AI_NOTES mistake 11). The row action
+  button reads "Define maze" or "Review maze" depending on that same status,
+  replacing a button that used to say "Define maze" even after a maze had
+  already been defined.
+- **Hole investigation (nose-poke) detection is explicitly deferred, not
+  forgotten.** `OCCLUDED_IN_HOLE`/`IN_ESCAPE_BOX` require the tracked blob to
+  fully vanish, which is correct for genuine escape but structurally cannot
+  fire on a nose-poke — the animal's head dips toward a hole while its body
+  stays fully visible on the platform, so the blob never disappears at all.
+  Confirmed this precisely on `test51`: the nose sits 9–16px from hole 19
+  (hole radius ≈13px) for the last 15 tracked frames, state `TRACKED`
+  throughout, clip ends mid-investigation. Detecting this needs a different
+  signal (nose-to-hole proximity over time, independent of vanish/reappear)
+  and, per the brief's own framing ("what counts as investigating a hole has
+  no single right answer... the threshold must be visible and adjustable"),
+  its own tunable threshold UI — Elvis chose to keep it as its own future
+  milestone (event detection) rather than a quick addition here.
 - **Two full decode passes per video** (`src/core/cv/pipeline.ts`): one to
   build the background model from ~30 frames spread across the whole clip,
   one to run detection/tracking on every frame. The background model needs

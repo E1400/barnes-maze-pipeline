@@ -13,7 +13,7 @@ import {
   STORE_SETTINGS,
 } from './schema.ts'
 import type { StoredRoi, StoredRoiTemplate } from './schema.ts'
-import type { RoiDefinition } from '../core/roi.ts'
+import { roiCompleteness, type RoiDefinition } from '../core/roi.ts'
 import { openDatabase } from './videoStore.ts'
 
 function runTransaction<T>(
@@ -63,6 +63,20 @@ export async function loadRoi(
 
 export function deleteRoi(videoId: string): Promise<undefined> {
   return runTransaction(STORE_ROIS, 'readwrite', (store) => store.delete(videoId))
+}
+
+/**
+ * Video ids that have a usable maze layout saved, for the video table's
+ * per-row status. A ring with no holes doesn't count as "defined" -- same
+ * bar as `roiCompleteness(...).hasRing` uses everywhere else.
+ */
+export async function listDefinedVideoIds(): Promise<Set<string>> {
+  const records = await runTransaction(STORE_ROIS, 'readonly', (store) =>
+    store.getAll() as IDBRequest<StoredRoi[]>,
+  )
+  return new Set(
+    records.filter((r) => roiCompleteness(r.roi).hasRing).map((r) => r.videoId),
+  )
 }
 
 /** Stores the ROI to offer as a starting point on the next video. */

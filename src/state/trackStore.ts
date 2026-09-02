@@ -58,3 +58,11 @@ export async function loadTracks(videoId: string): Promise<StoredTrack | null> {
 export function deleteTracks(videoId: string): Promise<undefined> {
   return runTransaction('readwrite', (store) => store.delete(videoId))
 }
+
+/** Video ids with a saved tracking result, for the video table's per-row status. */
+export async function listTrackedVideoIds(): Promise<Set<string>> {
+  // Keys only -- avoids reading every stored track array just to know which
+  // videos have one.
+  const keys = await runTransaction('readonly', (store) => store.getAllKeys())
+  return new Set(keys as string[])
+}

@@ -160,7 +160,31 @@ was wrong about it, what the tell was, how you caught it.
     second, independent consumer (detection) without revisiting whether the
     coalescing assumption still held for it.
 
-11. <!-- next real one goes here -->
+11. **The Worker's lifetime was tied to the wrong component.**
+    Elvis reported that switching to a different video while one was
+    tracking stopped the tracking. That was designed in, not a fluke:
+    `TrackingPanel` created its Worker in a `useEffect` and terminated it on
+    unmount, and `TrackingPanel` was keyed by video id and unmounted whenever
+    the selected video changed -- so navigating away was architecturally
+    identical to cancelling the job. The fix is a real lifecycle move, not a
+    tweak: the Worker now lives in a hook (`useTrackingJob`) owned by `App`,
+    which outlives any single video's view. Verified the fix rather than
+    trusting the refactor: drove a real browser through start-tracking,
+    switch-video, wait, and read the *other* video's row in the table
+    climbing (2% -> 10% -> 19% -> 28%) while its own workspace was off
+    screen, then confirmed it reached "Tracked." A second, smaller bug came
+    out of the same verification pass before it ever reached Elvis: the
+    video table's compact "Tracking N%" read the raw frame counter without
+    the phase, and since tracking runs two full decode passes per video
+    (background sampling, then detection -- see pipeline.ts), the percentage
+    would climb to 100% during background sampling and then visibly *drop*
+    back down when the tracking pass began its own count from zero. Caught
+    because I compared two progress readings 3 seconds apart during my own
+    test and got a smaller second number; fixed by labelling the phase
+    ("Background N%" / "Tracking N%") rather than showing a bare number that
+    implied one continuous count.
+
+12. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 
@@ -318,3 +342,20 @@ browsers without WebCodecs. `decodeVideo` fails with a clear message instead
 of a cryptic one, but CLAUDE.md's original plan called for a real fallback
 (playback capture); that isn't built. Tracking simply isn't available yet on
 a browser without WebCodecs support.
+
+**Tracking survives navigation + video-table dashboard (this branch).** Real
+user feedback surfaced a genuine bug (mistake 11) and a real design gap: the
+tracker successfully tracked a full trial without ever flagging a hole
+visit or an escape, and Elvis asked whether that was implemented. Checked
+rather than assumed: read the nose-to-hole distance for the last 15 tracked
+frames of `test51` directly. The nose sits 9-16px from hole 19 (hole radius
+~13px) for the entire tail of the clip, state `TRACKED` throughout -- the
+animal is investigating a hole with its body fully visible, and the clip
+ends before any full-body vanish. That confirmed the actual gap precisely:
+`OCCLUDED_IN_HOLE`/`IN_ESCAPE_BOX` require a full vanish (correct for real
+escape) and structurally cannot fire on a nose-poke where the body stays
+visible -- investigation detection needs a different signal (nose-to-hole
+proximity over time) and was deliberately kept out of this chunk, per
+Elvis's choice, as its own future milestone with its own adjustable
+threshold. Recorded in CLAUDE.md so the reasoning survives past this
+conversation.

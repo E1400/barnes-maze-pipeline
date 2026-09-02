@@ -11,10 +11,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatFps, readTimebase } from '../core/timebase.ts'
 import { deleteVideo, listVideos, putVideo } from '../state/videoStore.ts'
-import { deleteRoi } from '../state/roiStore.ts'
-import { deleteTracks } from '../state/trackStore.ts'
+import { deleteRoi, listDefinedVideoIds } from '../state/roiStore.ts'
+import { deleteTracks, listTrackedVideoIds } from '../state/trackStore.ts'
 import { DB_VERSION, videoId } from '../state/schema.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
+import type { PipelineProgress } from '../core/cv/pipeline.ts'
 
 function isVideoFile(file: File): boolean {
   // Browsers occasionally report an empty type for a known extension, so fall
@@ -37,14 +38,27 @@ function formatSize(bytes: number): string {
 interface Props {
   readonly selectedVideoId: string | null
   readonly onSelectVideo: (video: StoredVideoSummary) => void
+  /** The video currently being tracked in the background, if any. */
+  readonly activeVideoId: string | null
+  readonly activeProgress: PipelineProgress | null
+  /** Changes each time a tracking run finishes, prompting a status refresh. */
+  readonly trackingRefreshToken: number
 }
 
-export default function VideoLoader({ selectedVideoId, onSelectVideo }: Props) {
+export default function VideoLoader({
+  selectedVideoId,
+  onSelectVideo,
+  activeVideoId,
+  activeProgress,
+  trackingRefreshToken,
+}: Props) {
   const [videos, setVideos] = useState<StoredVideoSummary[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [status, setStatus] = useState('')
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [definedVideoIds, setDefinedVideoIds] = useState<Set<string>>(new Set())
+  const [trackedVideoIds, setTrackedVideoIds] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -67,6 +81,23 @@ export default function VideoLoader({ selectedVideoId, onSelectVideo }: Props) {
       cancelled = true
     }
   }, [])
+
+  // Per-video status for the table. Refetched whenever the video list changes
+  // or a tracking run completes, so "Tracked" appears without a page reload.
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([listDefinedVideoIds(), listTrackedVideoIds()]).then(
+      ([defined, tracked]) => {
+        if (!cancelled) {
+          setDefinedVideoIds(defined)
+          setTrackedVideoIds(tracked)
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [videos, trackingRefreshToken])
 
   const addFiles = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
@@ -200,50 +231,70 @@ export default function VideoLoader({ selectedVideoId, onSelectVideo }: Props) {
               <th scope="col">Frame rate</th>
               <th scope="col">Frames</th>
               <th scope="col">Duration</th>
-              <th scope="col">Frame timing</th>
+              <th scope="col">Maze</th>
+              <th scope="col">Tracking</th>
               <th scope="col">
                 <span className="visually-hidden">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody>
-            {videos.map((video) => (
-              <tr
-                key={video.id}
-                data-testid="video-row"
-                aria-current={video.id === selectedVideoId ? 'true' : undefined}
-                className={video.id === selectedVideoId ? 'selected-row' : undefined}
-              >
-                <th scope="row">
-                  {video.name}
-                  <span className="muted"> ({formatSize(video.size)})</span>
-                </th>
-                <td data-testid="fps">{formatFps(video.timebase.nominalFps)} fps</td>
-                <td>{video.timebase.frameCount}</td>
-                <td>{formatDuration(video.timebase.durationSeconds)}</td>
-                <td>
-                  {video.timebase.jitter.isVariable ? (
-                    // Not a warning about the file being broken -- it is normal
-                    // for these clips -- but it is the reason frame times come
-                    // from the stts table rather than from index / fps.
-                    <span title="Frame intervals are not constant in this file; frame times are read individually from the container.">
-                      variable ({(video.timebase.jitter.offModalFraction * 100).toFixed(1)}
-                      % off-nominal)
-                    </span>
-                  ) : (
-                    'constant'
-                  )}
-                </td>
-                <td className="row-actions">
-                  <button type="button" onClick={() => onSelectVideo(video)}>
-                    Define maze<span className="visually-hidden"> for {video.name}</span>
-                  </button>
-                  <button type="button" onClick={() => void onRemove(video)}>
-                    Remove<span className="visually-hidden"> {video.name}</span>
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {videos.map((video) => {
+              const isDefined = definedVideoIds.has(video.id)
+              const isTracking = video.id === activeVideoId
+              const isTracked = trackedVideoIds.has(video.id)
+              // Two decode passes run per video (background sampling, then
+              // tracking -- see pipeline.ts), each reporting its own 0-100%.
+              // Showing a bare percentage without the phase would make the
+              // tracking pass look like progress going backwards right after
+              // the background pass finishes.
+              const trackingLabel = isTracking
+                ? activeProgress
+                  ? `${activeProgress.phase === 'background' ? 'Background' : 'Tracking'} ${Math.round((activeProgress.framesProcessed / activeProgress.totalFrames) * 100)}%`
+                  : 'Starting…'
+                : isTracked
+                  ? 'Tracked'
+                  : 'Not tracked'
+
+              return (
+                <tr
+                  key={video.id}
+                  data-testid="video-row"
+                  aria-current={video.id === selectedVideoId ? 'true' : undefined}
+                  className={video.id === selectedVideoId ? 'selected-row' : undefined}
+                >
+                  <th scope="row">
+                    {video.name}
+                    <span className="muted"> ({formatSize(video.size)})</span>
+                  </th>
+                  <td>
+                    <span data-testid="fps">{formatFps(video.timebase.nominalFps)} fps</span>
+                    {video.timebase.jitter.isVariable && (
+                      <span
+                        className="muted"
+                        title="Frame intervals vary in this file; times are read per-frame from the container, not assumed from the rate."
+                      >
+                        {' '}
+                        (variable)
+                      </span>
+                    )}
+                  </td>
+                  <td>{video.timebase.frameCount}</td>
+                  <td>{formatDuration(video.timebase.durationSeconds)}</td>
+                  <td data-testid="maze-status">{isDefined ? 'Defined' : 'Not defined'}</td>
+                  <td data-testid="tracking-status">{trackingLabel}</td>
+                  <td className="row-actions">
+                    <button type="button" onClick={() => onSelectVideo(video)}>
+                      {isDefined ? 'Review maze' : 'Define maze'}
+                      <span className="visually-hidden"> for {video.name}</span>
+                    </button>
+                    <button type="button" onClick={() => void onRemove(video)}>
+                      Remove<span className="visually-hidden"> {video.name}</span>
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       )}

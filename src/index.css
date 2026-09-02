@@ -571,3 +571,13 @@ a {
   stroke: #000000;
   stroke-width: 1.5;
 }
+
+.tracking-start-label {
+  fill: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #000000;
+  stroke-width: 3px;
+}

@@ -743,14 +743,10 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                 <li>{completeness.hasScale ? '✓' : '·'} Platform diameter entered</li>
               </ul>
               <p className="hint">
-                Corrected since setup:{' '}
+                Hand-corrected holes:{' '}
                 {roi.nudgedHoles.length > 0
-                  ? `hole${roi.nudgedHoles.length > 1 ? 's' : ''} ${roi.nudgedHoles.map((i) => i + 1).join(', ')}`
-                  : roi.source === 'detected'
-                    ? 'none — the detected positions were used as-is'
-                    : roi.source === 'template'
-                      ? 'none — the copied layout was used as-is'
-                      : 'none yet'}
+                  ? roi.nudgedHoles.map((i) => i + 1).join(', ')
+                  : 'none'}
               </p>
 
               <div className="button-row">
