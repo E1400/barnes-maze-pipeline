@@ -68,3 +68,26 @@ export function binarize(
   }
   return out
 }
+
+/**
+ * Pixels at or below `threshold` become 1 — the dark-feature counterpart of
+ * `binarize`, used to find holes against the bright platform surface.
+ *
+ * The comparison is `<=`, not `<`, and that matters: `otsuThreshold` returns
+ * the *lower edge* of the split, so on an image of holes at 55 and platform at
+ * 190 it returns exactly 55. A strict `<` excludes every hole pixel and finds
+ * nothing at all. `binarize` (`>`) and `binarizeBelow` (`<=`) are exact
+ * complements, which is the property that keeps them consistent.
+ */
+export function binarizeBelow(
+  frame: GrayFrame,
+  threshold: number,
+  mask?: BinaryMask,
+): BinaryMask {
+  const out = new Uint8Array(frame.data.length)
+  for (let i = 0; i < frame.data.length; i++) {
+    if (mask && !mask[i]) continue
+    out[i] = frame.data[i]! <= threshold ? 1 : 0
+  }
+  return out
+}

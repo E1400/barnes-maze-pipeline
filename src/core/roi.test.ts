@@ -3,6 +3,11 @@ import { generateHoleRing, type RingSpec } from './geometry.ts'
 import {
   createRoi,
   nudgeHole,
+  rotateRing,
+  scaleRing,
+  setHoleRadius,
+  setPlatformRadius,
+  translateRoi,
   regenerateRing,
   roiCompleteness,
   roiPixelsPerCm,
@@ -112,5 +117,86 @@ describe('roiCompleteness', () => {
 
     const done = setPlatformDiameterCm(setTargetHole(ringOnly, 0), 92)
     expect(roiCompleteness(done).isComplete).toBe(true)
+  })
+})
+
+describe('translateRoi', () => {
+  it('moves the centre and every hole together', () => {
+    // Dragging the centre must take the ring with it -- the operation users
+    // reach for first, and the one that was missing.
+    const before = newRoi()
+    const after = translateRoi(before, 10, -5)
+    expect(after.center).toEqual({ x: 330, y: 235 })
+    expect(after.ring.center).toEqual({ x: 330, y: 235 })
+    for (let i = 0; i < before.holes.length; i++) {
+      expect(after.holes[i]!.x).toBeCloseTo(before.holes[i]!.x + 10, 9)
+      expect(after.holes[i]!.y).toBeCloseTo(before.holes[i]!.y - 5, 9)
+    }
+  })
+
+  it('keeps hole distances from the centre unchanged', () => {
+    const after = translateRoi(newRoi(), 40, 40)
+    for (const hole of after.holes) {
+      expect(Math.hypot(hole.x - after.center.x, hole.y - after.center.y)).toBeCloseTo(180, 6)
+    }
+  })
+})
+
+describe('scaleRing', () => {
+  it('stretches the ring about the centre', () => {
+    const after = scaleRing(newRoi(), 90)
+    expect(after.ring.ringRadius).toBe(90)
+    for (const hole of after.holes) {
+      expect(Math.hypot(hole.x - after.center.x, hole.y - after.center.y)).toBeCloseTo(90, 6)
+    }
+  })
+
+  it('preserves a hand correction proportionally instead of discarding it', () => {
+    // Unlike regenerateRing, resizing must not throw away human work.
+    const nudged = nudgeHole(newRoi(), 3, { x: 400, y: 300 })
+    const after = scaleRing(nudged, 360) // double
+    expect(after.nudgedHoles).toEqual([3])
+    expect(after.holes[3]!.x).toBeCloseTo(320 + (400 - 320) * 2, 6)
+    expect(after.holes[3]!.y).toBeCloseTo(240 + (300 - 240) * 2, 6)
+  })
+
+  it('ignores a nonsensical radius', () => {
+    const roi = newRoi()
+    expect(scaleRing(roi, 0)).toBe(roi)
+  })
+})
+
+describe('rotateRing', () => {
+  it('rotates every hole about the centre', () => {
+    const before = newRoi()
+    const after = rotateRing(before, Math.PI / 2)
+    // Hole 0 started at (500, 240); a quarter turn puts it below the centre.
+    expect(after.holes[0]!.x).toBeCloseTo(320, 6)
+    expect(after.holes[0]!.y).toBeCloseTo(420, 6)
+    expect(after.ring.rotation).toBeCloseTo(before.ring.rotation + Math.PI / 2, 9)
+  })
+
+  it('is reversible', () => {
+    const before = newRoi()
+    const after = rotateRing(rotateRing(before, 0.7), -0.7)
+    for (let i = 0; i < before.holes.length; i++) {
+      expect(after.holes[i]!.x).toBeCloseTo(before.holes[i]!.x, 6)
+      expect(after.holes[i]!.y).toBeCloseTo(before.holes[i]!.y, 6)
+    }
+  })
+})
+
+describe('setPlatformRadius / setHoleRadius', () => {
+  it('resizes the platform without moving the holes', () => {
+    const before = newRoi()
+    const after = setPlatformRadius(before, 260)
+    expect(after.platformRadius).toBe(260)
+    expect(after.holes).toEqual(before.holes)
+  })
+
+  it('refuses a non-positive radius', () => {
+    const roi = newRoi()
+    expect(setPlatformRadius(roi, 0)).toBe(roi)
+    expect(setHoleRadius(roi, -3)).toBe(roi)
   })
 })

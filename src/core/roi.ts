@@ -24,14 +24,21 @@ export interface RoiDefinition {
   readonly targetHole: number | null
   /** Physical platform diameter in cm, typed in by the user. */
   readonly platformDiameterCm: number | null
+  /** Radius of an individual hole, in pixels. Proposed by detection. */
+  readonly holeRadius: number
+  /** How this layout was produced, so the UI can say so. */
+  readonly source: 'detected' | 'manual' | 'template'
 }
 
 export const DEFAULT_HOLE_COUNT = 20
+
+export const DEFAULT_HOLE_RADIUS = 12
 
 export function createRoi(
   center: Point,
   platformRadius: number,
   ring: RingSpec,
+  options: { holeRadius?: number; source?: RoiDefinition['source'] } = {},
 ): RoiDefinition {
   return {
     center,
@@ -41,7 +48,71 @@ export function createRoi(
     nudgedHoles: [],
     targetHole: null,
     platformDiameterCm: null,
+    holeRadius: options.holeRadius ?? DEFAULT_HOLE_RADIUS,
+    source: options.source ?? 'manual',
   }
+}
+
+/**
+ * Moves the whole maze -- centre, ring and every hole together.
+ *
+ * Dragging the centre has to take the ring with it. Moving a centre that
+ * leaves the holes behind is not a useful operation on a maze.
+ */
+export function translateRoi(roi: RoiDefinition, dx: number, dy: number): RoiDefinition {
+  return {
+    ...roi,
+    center: { x: roi.center.x + dx, y: roi.center.y + dy },
+    ring: { ...roi.ring, center: { x: roi.center.x + dx, y: roi.center.y + dy } },
+    holes: roi.holes.map((h) => ({ x: h.x + dx, y: h.y + dy })),
+  }
+}
+
+/**
+ * Stretches or compresses the ring about the centre.
+ *
+ * Hole positions are scaled radially rather than regenerated, so hand
+ * corrections keep their relative offsets instead of being thrown away by a
+ * resize.
+ */
+export function scaleRing(roi: RoiDefinition, newRingRadius: number): RoiDefinition {
+  if (!(newRingRadius > 0) || !(roi.ring.ringRadius > 0)) return roi
+  const factor = newRingRadius / roi.ring.ringRadius
+  return {
+    ...roi,
+    ring: { ...roi.ring, ringRadius: newRingRadius },
+    holes: roi.holes.map((h) => ({
+      x: roi.center.x + (h.x - roi.center.x) * factor,
+      y: roi.center.y + (h.y - roi.center.y) * factor,
+    })),
+  }
+}
+
+/** Rotates the whole ring about the centre, preserving hand corrections. */
+export function rotateRing(roi: RoiDefinition, deltaRadians: number): RoiDefinition {
+  const cos = Math.cos(deltaRadians)
+  const sin = Math.sin(deltaRadians)
+  return {
+    ...roi,
+    ring: { ...roi.ring, rotation: roi.ring.rotation + deltaRadians },
+    holes: roi.holes.map((h) => {
+      const dx = h.x - roi.center.x
+      const dy = h.y - roi.center.y
+      return {
+        x: roi.center.x + dx * cos - dy * sin,
+        y: roi.center.y + dx * sin + dy * cos,
+      }
+    }),
+  }
+}
+
+/** Resizes the platform boundary without touching the holes. */
+export function setPlatformRadius(roi: RoiDefinition, radius: number): RoiDefinition {
+  return radius > 0 ? { ...roi, platformRadius: radius } : roi
+}
+
+export function setHoleRadius(roi: RoiDefinition, radius: number): RoiDefinition {
+  return radius > 0 ? { ...roi, holeRadius: radius } : roi
 }
 
 /** Moves one hole and records that a human, not the generator, placed it. */

@@ -4,7 +4,7 @@ import { axisEndpoints, connectedComponents } from './components.ts'
 import { DEFAULT_DETECTION_PARAMS, TypeScriptDetector } from './detector.ts'
 import { absDiff, applyMask, circleMask, rgbaToGray } from './image.ts'
 import { close, dilate, erode, open } from './morphology.ts'
-import { binarize, otsuThreshold } from './threshold.ts'
+import { binarize, binarizeBelow, otsuThreshold } from './threshold.ts'
 import { createGray, type BinaryMask, type GrayFrame } from './types.ts'
 
 /** Draws a filled rectangle of `value` into a frame. */
@@ -149,6 +149,35 @@ describe('binarize', () => {
     expect(Array.from(binarize(frame, 30))).toEqual([0, 0, 1, 1])
     const mask = new Uint8Array([1, 1, 0, 0])
     expect(Array.from(binarize(frame, 30, mask))).toEqual([0, 0, 0, 0])
+  })
+})
+
+describe('binarizeBelow', () => {
+  it('includes pixels exactly at the threshold', () => {
+    // Otsu returns the lower edge of the split, so on a two-value image the
+    // threshold IS the dark value. A strict '<' here finds nothing at all --
+    // the bug that made hole detection return zero holes.
+    const frame = createGray(4, 1)
+    frame.data.set([55, 55, 190, 190])
+    const threshold = otsuThreshold(frame)
+    expect(threshold).toBe(55)
+    expect(Array.from(binarizeBelow(frame, threshold))).toEqual([1, 1, 0, 0])
+  })
+
+  it('is the exact complement of binarize', () => {
+    const frame = createGray(6, 1)
+    frame.data.set([0, 30, 55, 90, 190, 255])
+    const above = binarize(frame, 55)
+    const below = binarizeBelow(frame, 55)
+    for (let i = 0; i < frame.data.length; i++) {
+      expect(above[i]! + below[i]!).toBe(1)
+    }
+  })
+
+  it('never marks pixels outside the mask', () => {
+    const frame = createGray(4, 1)
+    frame.data.set([10, 10, 10, 10])
+    expect(Array.from(binarizeBelow(frame, 50, new Uint8Array([1, 0, 1, 0])))).toEqual([1, 0, 1, 0])
   })
 })
 
