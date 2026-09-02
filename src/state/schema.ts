@@ -5,6 +5,8 @@
  */
 
 import type { RoiDefinition } from '../core/roi.ts'
+import type { DetectionParams } from '../core/cv/detector.ts'
+import type { FrameTrack, TrackerParams } from '../core/tracking.ts'
 import type { Timebase } from '../core/timebase.ts'
 
 /**
@@ -12,7 +14,7 @@ import type { Timebase } from '../core/timebase.ts'
  * `migrations.ts`. This is the IndexedDB `version`, so bumping it triggers
  * `onupgradeneeded`.
  */
-export const DB_VERSION = 2
+export const DB_VERSION = 3
 
 export const DB_NAME = 'barnes-maze-pipeline'
 
@@ -24,6 +26,8 @@ export const STORE_SETTINGS = 'settings'
 
 /** Key under which the reusable ROI template lives in STORE_SETTINGS. */
 export const KEY_ROI_TEMPLATE = 'roiTemplate'
+/** One tracking run's results per video, keyed by video id. */
+export const STORE_TRACKS = 'tracks'
 
 /**
  * A video the user has loaded, with everything needed to redisplay it after a
@@ -74,4 +78,14 @@ export interface StoredRoiTemplate {
   readonly updatedAt: number
   readonly sourceVideoName: string
   readonly roi: RoiDefinition
+}
+
+/** A completed tracking run for one video, with the parameters that produced it. */
+export interface StoredTrack {
+  readonly videoId: string
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly tracks: readonly FrameTrack[]
+  readonly detectionParams: DetectionParams
+  readonly trackerParams: TrackerParams
 }

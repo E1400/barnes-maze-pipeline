@@ -51,15 +51,29 @@ type DragTarget =
 
 interface Props {
   readonly video: StoredVideoSummary
+  /**
+   * Notified on every change to the working ROI, not just saves. TrackingPanel
+   * (a sibling, not a descendant) needs the *current* layout to gate and run
+   * on, and reading it from IndexedDB independently raced the autosave debounce:
+   * "define the maze, then immediately track" could start tracking against a
+   * layout from before the last edit, or no layout at all.
+   */
+  readonly onRoiChange?: (roi: RoiDefinition | null) => void
 }
 
-export default function RoiEditor({ video }: Props) {
+export default function RoiEditor({ video, onRoiChange }: Props) {
   const [source, setSource] = useState<FrameSource | null>(null)
   const [frameUrl, setFrameUrl] = useState<string | null>(null)
   const [frameIndex, setFrameIndex] = useState(0)
   const [pins, setPins] = useState<number[]>([])
   const [error, setError] = useState('')
   const [roi, setRoi] = useState<RoiDefinition | null>(null)
+
+  // Propagate every change immediately -- not just on the debounced save --
+  // so a sibling always sees the layout as it exists right now.
+  useEffect(() => {
+    onRoiChange?.(roi)
+  }, [roi, onRoiChange])
   const [clicks, setClicks] = useState<Point[]>([])
   const [manualMode, setManualMode] = useState(false)
   const [holeCount, setHoleCount] = useState(DEFAULT_HOLE_COUNT)

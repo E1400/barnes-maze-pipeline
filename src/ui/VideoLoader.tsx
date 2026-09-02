@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatFps, readTimebase } from '../core/timebase.ts'
 import { deleteVideo, listVideos, putVideo } from '../state/videoStore.ts'
 import { deleteRoi } from '../state/roiStore.ts'
+import { deleteTracks } from '../state/trackStore.ts'
 import { DB_VERSION, videoId } from '../state/schema.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 
@@ -127,6 +128,7 @@ export default function VideoLoader({ selectedVideoId, onSelectVideo }: Props) {
   const onRemove = useCallback(async (video: StoredVideoSummary) => {
     await deleteVideo(video.id)
     await deleteRoi(video.id)
+    await deleteTracks(video.id)
     setVideos(await listVideos())
     setStatus(`Removed ${video.name}.`)
   }, [])

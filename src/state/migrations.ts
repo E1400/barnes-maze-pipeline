@@ -7,7 +7,7 @@
  * must never drop a store that holds user work.
  */
 
-import { DB_VERSION, STORE_ROIS, STORE_SETTINGS, STORE_VIDEOS } from './schema.ts'
+import { DB_VERSION, STORE_ROIS, STORE_SETTINGS, STORE_TRACKS, STORE_VIDEOS } from './schema.ts'
 
 type UpgradeStep = (db: IDBDatabase, transaction: IDBTransaction) => void
 
@@ -28,6 +28,13 @@ const STEPS: Record<number, UpgradeStep> = {
     }
     if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
       db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' })
+    }
+  },
+  // v3 adds tracking results. Purely additive, same reasoning as v2: existing
+  // videos and ROIs are untouched, they simply have no tracks yet.
+  3: (db) => {
+    if (!db.objectStoreNames.contains(STORE_TRACKS)) {
+      db.createObjectStore(STORE_TRACKS, { keyPath: 'videoId' })
     }
   },
 }

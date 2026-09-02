@@ -100,21 +100,67 @@ just change code silently, when a decision changes.
   sessions: OpenCV.js's size is *not* a violation of the brief's "nothing to
   install" requirement (it is a cached static asset, not an installation);
   do not repeat that argument.
-- **Frame decoding:** WebCodecs `VideoDecoder`, fed by mp4box demuxing (the
-  same parser already used for the timebase), with a playback-capture fallback
-  for browsers without WebCodecs. Seek-and-draw per frame is far too slow —
-  `test50` is 5539 frames — and playback capture is real-time-bound and can
-  drop frames, which is a correctness problem, not just a slow one.
-- **Lost vs in-hole policy:** conservative. A vanished blob is only called
-  `OCCLUDED_IN_HOLE` on strong evidence (near a hole ROI *and* shrinking
-  beforehand); ambiguous disappearances are `LOST` and flagged for review. An
-  honest gap beats a beautiful wrong answer.
-- **Per-frame state machine:** `TRACKED` / `LOST` (brief gaps only, gap-fill
-  method disclosed and visible) / `OCCLUDED_IN_HOLE` (blob vanished near a
-  hole ROI — a real event, never interpolated) / `IN_ESCAPE_BOX`.
-- **Nose vs. body centroid:** morphological opening to strip the thin tail
-  before computing the body blob; fit an ellipse; nose = the leading extremum
-  along the direction of travel.
+- **Frame decoding (implemented 2026-09-03):** WebCodecs `VideoDecoder`, fed
+  by mp4box demuxing (the same parser used for the timebase), in
+  `src/core/cv/decode.ts`. Seek-and-draw per frame (what the ROI editor uses
+  for occasional single-frame grabs) is far too slow for a full clip —
+  `test50` is 5539 frames, measured at ~37s for decode alone with seek-and-
+  draw's replacement, WebCodecs, vs. minutes if seeking per frame. All three
+  clips have real B-frame reordering (decoder output order ≠ this app's
+  decode/storage-order frame indices, which is what `stts`/timebase.ts are
+  built on); measured max decode-vs-display displacement is 8 frames on all
+  three clips, so decoder output is passed through
+  `src/core/cv/reorderBuffer.ts` (window 32) before frames reach a caller, and
+  callers only ever see ascending decode-order index. **No fallback exists yet**
+  for browsers without WebCodecs (the original plan called for playback
+  capture) — `decodeVideo` fails with a clear message instead of silently
+  guessing; tracking simply isn't available there yet.
+- **Tracking runs in a Web Worker** (`src/workers/tracking.worker.ts`), not
+  the main thread. Decode + per-frame CV is synchronous CPU-bound JS with no
+  natural yield point — measured up to ~4.7 minutes for `test50` (17s
+  background pass + 268s tracking pass; two full decode passes, see below) —
+  and on the main thread that freezes the tab for the whole run with no
+  progress rendered, which reads as a crash. Verified the worker actually
+  solves this (not just that it runs) by instrumenting a `setInterval` tick
+  counter during a real run and confirming it kept firing throughout.
+- **Two full decode passes per video** (`src/core/cv/pipeline.ts`): one to
+  build the background model from ~30 frames spread across the whole clip,
+  one to run detection/tracking on every frame. The background model needs
+  frames near the *end* of the clip before it can be computed, so a
+  single-pass design would mean buffering the entire clip in memory while
+  waiting for them — ~1.7 GB of raw grayscale for `test50`'s 5539 frames.
+  Decoding twice keeps memory bounded to a couple of frames at a time, at a
+  real but accepted time cost (roughly 2x a single decode pass).
+- **Lost vs in-hole policy:** conservative, implemented in
+  `src/core/tracking.ts`'s `Tracker`. A vanished blob is only called
+  `OCCLUDED_IN_HOLE` on strong evidence (within `holeProximityRadiusFactor`
+  hole-radii of the nearest hole *and* the blob shrunk by at least
+  `shrinkFractionRequired` over the preceding `shrinkWindowFrames`);
+  ambiguous disappearances are `LOST`. Both parameters are named fields on
+  `TrackerParams`, not buried constants. The classification is decided once
+  per *vanish streak* and held for every subsequent frame in that streak —
+  see AI_NOTES mistake entry 9 for why re-deciding it every frame was wrong.
+- **Per-frame state machine:** `TRACKED` / `LOST` / `OCCLUDED_IN_HOLE` (blob
+  vanished near a hole ROI — a real event, never interpolated) /
+  `IN_ESCAPE_BOX`. `IN_ESCAPE_BOX` has no separate escape-box ROI: it's a
+  post-pass (`Tracker.finalize()`) that promotes a trailing
+  `OCCLUDED_IN_HOLE` run at the marked target hole to `IN_ESCAPE_BOX` only
+  when it runs to the end of the clip without the animal reappearing — a
+  hole visit the animal returns from is never escape, regardless of which
+  hole. Gap-fill/bridging (`maxBridgedGapFrames`) is declared in
+  `TrackerParams` but not yet wired into a display layer — deferred to the
+  correction-UI milestone, since "visible, disclosed gap-fill" is a display
+  concern, not a classification one.
+- **Nose vs. body centroid:** morphological opening (already applied in
+  `TypeScriptDetector`) strips the thin tail before the body blob is
+  measured; `axisEndpoints` gives both ends of the principal axis. The
+  *tracker*, not the per-frame detector, picks which end is the nose — it
+  needs velocity (this frame's centroid vs. last frame's) to know the
+  direction of travel, which a single frame can't provide. Falls back to
+  continuity with the previous nose (whichever end moved least) when
+  velocity is below a noise floor, so the nose doesn't flicker between ends
+  while the animal is nearly stationary; resets on any vanish, since there's
+  no continuity to preserve across a gap.
 - **Container parsing:** `mp4box.js` (`mp4box` on npm, pinned) reads the
   `mdhd` timescale and full `stts` table. `src/core/timebase.ts` builds exact
   per-frame times from the cumulative tick sum and reports nominal fps as a
@@ -165,8 +211,8 @@ just change code silently, when a decision changes.
 src/core/       pure TS logic — no DOM/React, fully unit-testable
                 (timebase, geometry, tracking types, event detection,
                 measures, search-strategy classifier)
-src/workers/    OpenCV.js worker: background model, per-frame extraction,
-                progress messaging
+src/workers/    tracking.worker.ts — runs decode/background/detection/
+                classification off the main thread, posts progress
 src/state/      IndexedDB persistence layer
 src/ui/         React components: VideoLoader, ROIEditor, Scrubber /
                 CorrectionPanel, EventDetectionPanel, MeasuresTable,

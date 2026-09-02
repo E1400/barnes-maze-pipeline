@@ -1,0 +1,92 @@
+import { existsSync } from 'node:fs'
+import { expect, test, type Page } from '@playwright/test'
+
+const FIXTURE = 'data/barnes-maze/test51.mp4'
+
+test.skip(!existsSync(FIXTURE), `Missing ${FIXTURE} — run npm run fetch:samples`)
+
+async function openWithMaze(page: Page) {
+  await page.goto('./')
+  await page.getByLabel('Choose video files').setInputFiles(FIXTURE)
+  await page.getByTestId('video-row').first().waitFor()
+  await page.getByRole('button', { name: /Define maze/ }).click()
+  await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
+}
+
+test('tracking is gated until the maze layout exists', async ({ page }) => {
+  await page.goto('./')
+  await page.getByLabel('Choose video files').setInputFiles(FIXTURE)
+  await page.getByTestId('video-row').first().waitFor()
+  // "Define maze" is also what selects the video (there's no separate select
+  // step), which is what makes both step 2 and step 3 render. Detection then
+  // runs asynchronously, so there's a real window right after this click
+  // where a layout doesn't exist yet -- that's the gated state to check.
+  await page.getByRole('button', { name: /Define maze/ }).click()
+  await expect(page.locator('section.tracking')).toContainText(/define the maze layout/i)
+  await expect(page.getByRole('button', { name: 'Track this video' })).toHaveCount(0)
+
+  // Once detection produces a layout, the gate lifts on its own.
+  await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
+  await expect(page.getByRole('button', { name: 'Track this video' })).toBeVisible()
+})
+
+test('runs entirely client-side, reports progress, and produces a plausible track', async ({
+  page,
+}) => {
+  // A real tracking run on this fixture takes on the order of 40s; the
+  // per-assertion timeouts below are generous, but the *test's* own default
+  // 30s budget wraps all of them and needs raising too.
+  test.setTimeout(150_000)
+  await openWithMaze(page)
+  await page.getByLabel('Target hole number').fill('1')
+
+  const trackButton = page.getByRole('button', { name: 'Track this video' })
+  await expect(trackButton).toBeVisible()
+  await trackButton.click()
+
+  // A progress message should appear before completion -- this is a Web
+  // Worker doing real work, not a stub.
+  await expect(page.locator('section.tracking .status')).toContainText(
+    /Sampling the background|Tracking: frame/,
+    { timeout: 15_000 },
+  )
+
+  await expect(page.locator('section.tracking .status')).toContainText(
+    '741 frames tracked',
+    { timeout: 120_000 },
+  )
+  await expect(page.locator('section.tracking .status')).toContainText('nothing is uploaded')
+
+  const checklist = page.locator('section.tracking .checklist')
+  await expect(checklist).toContainText('Tracked: ')
+  await expect(checklist).toContainText('Tracking lost: ')
+  await expect(checklist).toContainText('In a hole: ')
+  await expect(checklist).toContainText('Escaped: ')
+
+  // The plot exists and its path never draws through a gap -- see the CSS
+  // class on the polyline segments, which are only emitted per contiguous
+  // TRACKED run (src/ui/TrackingPanel.tsx).
+  await expect(page.locator('svg.tracking-plot')).toHaveCount(1)
+  const segmentCount = await page.locator('polyline.tracking-path').count()
+  expect(segmentCount).toBeGreaterThan(0)
+})
+
+test('tracking results survive a reload without re-running', async ({ page }) => {
+  test.setTimeout(150_000)
+  await openWithMaze(page)
+  await page.getByRole('button', { name: 'Track this video' }).click()
+  await expect(page.locator('section.tracking .status')).toContainText('741 frames tracked', {
+    timeout: 120_000,
+  })
+
+  await page.reload()
+  await page.getByRole('button', { name: /Define maze/ }).click()
+  await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
+
+  // No re-run needed: the saved result should appear promptly, not after
+  // another multi-second tracking pass.
+  await expect(page.locator('section.tracking .status')).toContainText('741 frames tracked', {
+    timeout: 5_000,
+  })
+  await expect(page.getByRole('button', { name: 'Re-track this video' })).toBeVisible()
+})

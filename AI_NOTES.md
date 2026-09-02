@@ -121,7 +121,46 @@ was wrong about it, what the tell was, how you caught it.
    that doesn't reproduce-then-fix can land next to the real cause instead of
    on it.
 
-9. <!-- next real one goes here -->
+9. **The tracker classified a multi-frame hole visit correctly only on its first frame.**
+   Building the LOST/OCCLUDED_IN_HOLE state machine, the design was "decide
+   which one it is from the last tracked position and recent shrink history,"
+   which I implemented as a fresh evaluation on every vanished frame. Wrong:
+   deciding "this is a hole entry" cleared `lastTrackedCentroid` (on the
+   reasoning that the animal is now inside the hole, not sitting at its last
+   visible spot), which meant the *second* consecutive vanished frame had
+   nothing to re-attribute to a hole with and fell back to LOST — a real
+   3+ frame hole visit would report OCCLUDED_IN_HOLE, LOST, LOST, LOST... A
+   unit test asserting `records.at(-2)` for a multi-frame visit caught it
+   immediately. Fixed by deciding the classification once per vanish streak
+   and holding it for every subsequent frame in that streak, rather than
+   re-deriving it each frame from state that the first frame's decision had
+   already invalidated.
+
+10. **A live-scrubbing fix from the previous session had a hidden failure mode: two callers wanting the same frame.**
+    Building maze auto-detection, the ROI editor started showing a solid
+    black frame on open for `test53` specifically, while detection on that
+    same frame succeeded with correct geometry. Traced it to
+    `frameSource.ts`'s seek-coalescing (added last session to make the
+    scrubber track the cursor live during a drag): it judged whether a
+    queued request was "superseded" by comparing an opaque per-call token,
+    not the frame index being requested. On mount, the editor's display
+    effect and its auto-detect effect both request frame 0 within
+    milliseconds of each other as two independent calls — the second call's
+    token became `latestToken` before the first call's queued turn came up,
+    so the first call's real seek was skipped and its caller read an
+    untouched canvas (solid black), while the second call did get real
+    pixels. A data URL existing was not enough to catch this — the test I
+    wrote decodes the JPEG back to pixels and checks mean luminance, not just
+    that `<image href>` is non-empty. Fixed by comparing frame *index*
+    instead of call identity: a request is only skipped once a *different*
+    frame has been requested more recently, so two concurrent callers asking
+    for the same frame both still get a real seek. Generalizes: a
+    "keep only the latest" optimization is only correct when every caller is
+    part of the same logical stream of requests: the ROI editor added a
+    second, independent consumer (detection) without revisiting whether the
+    coalescing assumption still held for it.
+
+11. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 
@@ -244,3 +283,38 @@ and now pinned by regression tests. Manually screenshotted the finished
 editor as a last check before calling it done, rather than trusting "e2e is
 green" as the final word — the brief's whole premise is that a plausible-
 looking result is not the same as a checked one.
+
+**CV tracking core (this branch).** Verified against real MP4 bytes at every
+layer rather than assuming an API worked as documented: probed mp4box's
+sample-extraction and avcC-description APIs against a real clip in Node
+before writing decode.ts against them, then measured the actual decode-vs-
+display frame reordering on all three clips (a consistent max displacement of
+8, not guessed) before choosing a reorder-buffer window size. Ran the full
+decode path against all three real clips and asserted exact frame counts,
+strict ascending order, and non-degenerate pixel content — not just "it
+didn't throw." Ran the full background+detect+track pipeline against all
+three real clips end-to-end (98–100% tracked on the two well-lit clips, 83%
+on `test53` where the trial evidently opens on a dim/transitional frame the
+tracker correctly refuses to fabricate a position for) and checked every
+TRACKED centroid falls inside the platform boundary. Verified the Worker
+actually solves the responsiveness problem it was built for, not just that it
+runs: instrumented a `setInterval` tick counter during a real tracking run and
+confirmed it kept firing throughout — the main thread doesn't freeze. Ran the
+tracking flow through the real built UI (not just direct function calls) on
+two of the three clips, including a reload to confirm persistence, and
+screenshotted the resulting trajectory plot to eyeball it: it starts at the
+platform centre and ends at the marked target hole, which is the expected
+shape of a working trial, not just a shape that happens to render.
+
+Two real bugs came out of this verification rather than being assumed away —
+see mistakes entries 9 and 10. Both are now pinned by regression tests (a
+unit test for the tracker attribution bug, an e2e test that decodes the
+displayed JPEG back to pixels and checks mean luminance for the black-frame
+bug — a test that only checked for a non-empty data URL would have passed
+right through it).
+
+Known gap, stated rather than silently left: there is no fallback for
+browsers without WebCodecs. `decodeVideo` fails with a clear message instead
+of a cryptic one, but CLAUDE.md's original plan called for a real fallback
+(playback capture); that isn't built. Tracking simply isn't available yet on
+a browser without WebCodecs support.
