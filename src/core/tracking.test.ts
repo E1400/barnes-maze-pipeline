@@ -157,6 +157,25 @@ describe('Tracker: nose assignment', () => {
     expect(second.nose).toEqual(first.nose)
   })
 
+  it('does not swap ends on jitter that would have crossed the old, looser speed threshold', () => {
+    // 0.9px/frame of back-and-forth jitter around a fixed point: below the
+    // current MIN_INFORMATIVE_SPEED (1.5) but above the original one (0.5)
+    // this project shipped with -- direct regression coverage for the
+    // widened window and raised threshold (2026-09-04, Elvis's feedback:
+    // nose direction was still visibly jittery, particularly on longer
+    // clips, and it feeds hole-investigation detection now, not just
+    // display -- see events.ts).
+    const tracker = new Tracker(roi())
+    const xs = [100, 100.9, 100.1, 100.8, 100.2, 100.7, 100.3]
+    let record = tracker.push(0, found({ centroid: { x: xs[0], y: 100 }, axisEnds }))
+    const noses: (typeof record.nose)[] = [record.nose]
+    for (let i = 1; i < xs.length; i++) {
+      record = tracker.push(i, found({ centroid: { x: xs[i], y: 100 }, axisEnds }))
+      noses.push(record.nose)
+    }
+    expect(noses.every((n) => n?.x === noses[0]?.x)).toBe(true)
+  })
+
   it('resets nose continuity after a vanish rather than carrying stale identity across a gap', () => {
     const tracker = new Tracker(roi())
     tracker.push(0, found({ centroid: { x: 90, y: 100 }, axisEnds }))
@@ -186,11 +205,13 @@ describe('Tracker: nose assignment', () => {
 
   it('still flips the nose once a reversal is sustained, not just noisy', () => {
     // Same steady +x run as above, but the reversal continues for enough
-    // frames to actually flush the forward motion out of the direction
-    // window -- this has to still work, or the noise fix would have traded
-    // jitter-resistance for never responding to a real turn-around.
+    // frames to actually flush the forward motion out of the (now 10-frame)
+    // direction window -- this has to still work, or the noise fix would
+    // have traded jitter-resistance for never responding to a real
+    // turn-around. Long enough that even just the reversal's own last 10
+    // frames average well past MIN_INFORMATIVE_SPEED on their own.
     const tracker = new Tracker(roi())
-    const xs = [100, 102, 104, 106, 108, 106, 104, 102, 100, 98, 96]
+    const xs = [100, 102, 104, 106, 108, ...Array.from({ length: 20 }, (_, i) => 108 - (i + 1) * 2)]
     let record = tracker.push(0, found({ centroid: { x: xs[0], y: 100 }, axisEnds }))
     for (let i = 1; i < xs.length; i++) {
       record = tracker.push(i, found({ centroid: { x: xs[i], y: 100 }, axisEnds }))

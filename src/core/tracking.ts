@@ -202,8 +202,17 @@ export class Tracker {
     }
   }
 
-  /** How many recent frames the direction-of-travel estimate is averaged over. */
-  private static readonly NOSE_DIRECTION_WINDOW = 5
+  /**
+   * How many recent frames the direction-of-travel estimate is averaged
+   * over. Widened from 5 to 10 (2026-09-04): nose position now drives more
+   * than display -- hole-investigation proximity detection reads
+   * `frame.nose` directly (see core/events.ts), so a jittery nose doesn't
+   * just look bad, it fabricates short-lived investigation rows at
+   * whichever hole the tail end swung toward. A longer averaging window
+   * damps single-frame position noise (pixel quantisation, minor detection
+   * jitter) further before it can flip which end reads as the nose.
+   */
+  private static readonly NOSE_DIRECTION_WINDOW = 10
 
   /**
    * Picks the leading axis endpoint as the nose: whichever end lies further
@@ -231,8 +240,15 @@ export class Tracker {
       // Normalised back to px/frame so the threshold below means the same
       // thing regardless of how many frames the window currently spans.
       const speed = Math.hypot(displacement.x, displacement.y) / framesSpanned
-      // Below this the direction estimate is mostly noise.
-      const MIN_INFORMATIVE_SPEED = 0.5
+      // Below this the direction estimate is mostly noise. Raised from 0.5
+      // to 1.5 (2026-09-04, same reasoning as the wider window above): at
+      // 0.5px/frame over the old 5-frame window, 2.5px of accumulated
+      // jitter -- well within ordinary per-frame detection noise for a
+      // small animal -- was enough to register as "real" motion and swap
+      // the nose. A higher bar means the tracker defers to continuity
+      // (keep the previous nose) far more often while the animal is
+      // essentially stationary, which is what "stopped" should look like.
+      const MIN_INFORMATIVE_SPEED = 1.5
       if (speed >= MIN_INFORMATIVE_SPEED) {
         const dotA = (a.x - centroid.x) * displacement.x + (a.y - centroid.y) * displacement.y
         const dotB = (b.x - centroid.x) * displacement.x + (b.y - centroid.y) * displacement.y
