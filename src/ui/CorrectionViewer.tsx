@@ -55,7 +55,7 @@ export default function CorrectionViewer({ video, roi, trackingJob }: Props) {
   const [pins, setPins] = useState<number[]>([])
   const [frameIndex, setFrameIndex] = useState(0)
   const [frameUrl, setFrameUrl] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const [drag, setDrag] = useState<'centroid' | 'nose' | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -268,15 +268,27 @@ export default function CorrectionViewer({ video, roi, trackingJob }: Props) {
           <image href={frameUrl} x={0} y={0} width={640} height={480} />
 
           <circle cx={roi.center.x} cy={roi.center.y} r={roi.platformRadius} className="roi-platform" />
-          {roi.holes.map((hole, i) => (
-            <circle
-              key={i}
-              cx={hole.x}
-              cy={hole.y}
-              r={roi.holeRadius}
-              className={roi.targetHole === i ? 'roi-hole--target' : 'roi-hole'}
-            />
-          ))}
+          {roi.holes.map((hole, i) => {
+            const isTarget = roi.targetHole === i
+            return (
+              <g key={i}>
+                <circle
+                  cx={hole.x}
+                  cy={hole.y}
+                  r={roi.holeRadius}
+                  className={isTarget ? 'roi-hole--target' : 'roi-hole'}
+                />
+                {isTarget && (
+                  <circle
+                    cx={hole.x}
+                    cy={hole.y}
+                    r={roi.holeRadius + 5}
+                    className="roi-hole--target-ring"
+                  />
+                )}
+              </g>
+            )
+          })}
 
           <polyline
             points={points.map((p) => `${p.x},${p.y}`).join(' ')}

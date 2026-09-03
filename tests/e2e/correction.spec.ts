@@ -41,11 +41,15 @@ test('expand toggle, click-to-jump, drag-to-correct, and revert', async ({ page 
   const svg = section.locator('svg.correction-canvas')
   const range = section.locator('.scrubber-range')
 
-  // Starts small; expanding visibly grows the viewer.
-  const smallWidth = (await svg.boundingBox())!.width
-  await section.getByRole('button', { name: 'Expand viewer' }).click()
+  // Starts expanded (no point defaulting to a tiny viewer); shrinking and
+  // re-expanding both visibly resize it.
+  await expect(section.getByRole('button', { name: 'Shrink viewer' })).toBeVisible()
   const expandedWidth = (await svg.boundingBox())!.width
-  expect(expandedWidth).toBeGreaterThan(smallWidth)
+  await section.getByRole('button', { name: 'Shrink viewer' }).click()
+  const smallWidth = (await svg.boundingBox())!.width
+  expect(smallWidth).toBeLessThan(expandedWidth)
+  await section.getByRole('button', { name: 'Expand viewer' }).click()
+  expect((await svg.boundingBox())!.width).toBeGreaterThan(smallWidth)
 
   // Clicking near the plotted path jumps the scrubber to that frame.
   const pathPoint = await svg

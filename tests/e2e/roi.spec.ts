@@ -185,6 +185,34 @@ test('a target hole can be set by typing its number, without clicking a hole fir
   await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(1)
 })
 
+test('the target hole can still be dragged like any other hole', async ({ page }) => {
+  // Regression test: .roi-hole--target and .roi-hole--target-ring were
+  // grouped under one CSS rule that set fill: none on both. That's correct
+  // for the ring (a hollow outline), but it also stripped the fill from the
+  // *main* hole circle -- and SVG only registers pointer events within a
+  // shape's painted area, so with no fill only the ~2px stroke at the very
+  // edge was clickable. A drag starting at the shape's own centre (exactly
+  // where every other hole works) silently missed it and hit the frame
+  // image underneath instead.
+  const svg = await openEditor(page)
+  await page.getByLabel('Target hole number').fill('1')
+
+  const target = page.locator('circle.roi-hole--target')
+  const before = { x: await attr(target, 'cx'), y: await attr(target, 'cy') }
+  const from = await screenPoint(svg, before)
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 25 * from.scale, from.y + 18 * from.scale, { steps: 8 })
+  await page.mouse.up()
+
+  // A tight pixel-exact check is flaky here (the test's own screen<->viewBox
+  // scale approximation vs. the app's real getScreenCTM conversion can differ
+  // by a sub-pixel rounding amount); the bug this guards was "doesn't move at
+  // all," so a clear, substantial move in the right direction is what matters.
+  expect(await attr(target, 'cx')).toBeGreaterThan(before.x + 15)
+  expect(await attr(target, 'cy')).toBeGreaterThan(before.y + 10)
+})
+
 test('the displayed frame shows real pixel data, not a blank canvas', async ({ page }) => {
   // Regression test: the auto-detect effect and the display effect both grab
   // frame 0 concurrently when the editor opens. An earlier version of the

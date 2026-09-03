@@ -229,7 +229,29 @@ was wrong about it, what the tell was, how you caught it.
     is the specific mistake, not React or the component structure in
     general.
 
-14. <!-- next real one goes here -->
+14. **A CSS rule shared between two elements silently made one of them unclickable.**
+    Elvis reported the target hole couldn't be dragged -- had to un-target it,
+    move it, then re-mark it as target. `.roi-hole--target, .roi-hole--target-ring`
+    shared one rule setting `fill: none`, correct for the ring (a hollow
+    outline drawn around the hole) but wrong for `.roi-hole--target` itself,
+    the *main* hole circle -- SVG only registers pointer events within a
+    shape's painted area, so with no fill only the ~2px stroke at the very
+    edge was clickable, and a drag starting at the shape's own centre (where
+    every other hole works fine) silently missed it and hit the background
+    frame image instead. Diagnosed methodically, not guessed: reproduced with
+    a script first (confirmed the hole genuinely doesn't move), then traced
+    pointer events (zero fired, not even pointerdown -- ruling out a JS logic
+    bug), then compared `elementFromPoint` at the hole's own computed centre
+    against a normal hole (returned the background `<image>`, not the
+    circle), then dumped computed styles, which showed `fill: none` where a
+    normal hole shows `fill: rgba(0,0,0,0.15)`. Each step ruled out one layer
+    (JS event handlers, geometry, hit-testing) before landing on the actual
+    CSS rule. Fixed by splitting the rule so the main circle keeps a solid
+    fill (now a distinct colour, which also directly answered Elvis's
+    separate request to make the target more visually obvious -- the same
+    bug was suppressing both correctness and visibility at once).
+
+15. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 

@@ -355,7 +355,24 @@ a {
   stroke-dasharray: 4 3;
 }
 
-.roi-hole--target,
+/*
+ * A solid, distinct fill -- not `fill: none`. This used to be grouped with
+ * .roi-hole--target-ring under one `fill: none` rule, which also stripped
+ * the fill from this element (the main hole circle, not just the ring
+ * drawn around it). SVG only registers pointer events within a shape's
+ * painted area; with no fill, only the ~2px stroke at the very edge was
+ * clickable, so a drag starting anywhere near the centre -- where every
+ * other hole is perfectly draggable -- silently missed the shape and hit
+ * the frame image underneath instead. Solid and clickable at its centre
+ * again, and considerably more visible against the platform than an
+ * outline ever was.
+ */
+.roi-hole--target {
+  fill: #e2453c;
+  stroke: #000000;
+  stroke-width: 3;
+}
+
 .roi-hole--target-ring {
   fill: none;
   stroke: #ffffff;

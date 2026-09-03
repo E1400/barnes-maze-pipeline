@@ -185,12 +185,26 @@ just change code silently, when a decision changes.
   hit-target `<circle>` per frame, which would mean thousands of extra DOM
   nodes on `test50`'s 5539-frame track) — matching within `PATH_CLICK_TOLERANCE`
   (14 view units) before it jumps, so a stray click on the frame image
-  doesn't teleport the scrubber. The viewer starts at a smaller size
-  (`max-width: 22rem`) with an "Expand viewer" toggle up to its native
-  640px — not a fullscreen/modal experience, which wasn't asked for and adds
-  real complexity (portals, escape-key handling, focus trapping) this pass
-  didn't need. The ROI editor (step 2) got the same expand toggle for
-  consistency, on the same request.
+  doesn't teleport the scrubber. The viewer has an "Expand viewer" toggle
+  (`max-width: 22rem` collapsed, native 640px expanded) and **defaults to
+  expanded** — not a fullscreen/modal experience, which wasn't asked for and
+  adds real complexity (portals, escape-key handling, focus trapping) this
+  pass didn't need. The ROI editor (step 2) got the same toggle, also
+  defaulted to expanded, for consistency.
+- **`.roi-hole--target`'s fill must never be `none`.** It shares a look with
+  `.roi-hole--target-ring` (the hollow outline drawn *around* the target
+  hole) but is a structurally different element — the main, normally-filled
+  hole circle — and grouping them under one `fill: none` rule silently made
+  the target hole undraggable: SVG only hit-tests a shape's *painted* area,
+  so with no fill, only its ~2px stroke edge registered pointer events, and
+  a drag starting at the shape's centre (where every other hole works)
+  missed it entirely (AI_NOTES mistake 14). Fixed with a solid, distinct
+  fill (`#e2453c`), which also directly serves the separate ask to make the
+  target more visually obvious than a slightly-thicker outline — the same
+  bug had been suppressing both correctness and visibility together. The
+  correction viewer's trajectory plot gained the same outer ring the ROI
+  editor already had, so the target reads clearly there too, not just
+  during layout.
 - **Pins are updated separately from ROI (`updatePins()` in
   `src/state/roiStore.ts`), never as a side effect of saving ROI geometry.**
   `CorrectionViewer` and `RoiEditor` both have their own pin toggle on the

@@ -83,7 +83,7 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
   const [templateName, setTemplateName] = useState<string | null>(null)
   const [saveCount, setSaveCount] = useState(0)
   const [drag, setDrag] = useState<DragTarget | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const svgRef = useRef<SVGSVGElement>(null)
   const dragOrigin = useRef<Point | null>(null)
 
