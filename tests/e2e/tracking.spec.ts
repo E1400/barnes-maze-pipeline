@@ -58,13 +58,11 @@ test('runs entirely client-side, reports progress, and produces a plausible trac
   // "Nothing is uploaded" is stated once at the top of the page, not
   // repeated in every status line.
 
-  const checklist = page.locator('section.tracking .checklist')
-  await expect(checklist).toContainText('Tracked: ')
-  await expect(checklist).toContainText('Tracking lost: ')
-  await expect(checklist).toContainText('In a hole: ')
-  await expect(checklist).toContainText('Escaped: ')
+  // Per-state hole-visit/escape counts live in the investigation panel
+  // (step 4), not duplicated here -- this line is just tracking QA.
+  await expect(page.locator('section.tracking .status')).toContainText('741 of 741 frames tracked')
   // The trajectory plot itself (path never drawn through a gap, click to
-  // jump to a frame) lives in CorrectionViewer now -- see correction.spec.ts.
+  // jump to a frame) lives in the review workspace now -- see review.spec.ts.
 })
 
 test('tracking results survive a reload without re-running', async ({ page }) => {

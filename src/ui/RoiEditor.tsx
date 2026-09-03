@@ -646,147 +646,172 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
 
           {roi && (
             <>
-              <h3>Size and position</h3>
-              <label>
-                Holes
-                <input
-                  type="number"
-                  min={4}
-                  max={40}
-                  value={holeCount}
-                  onChange={(event) => {
-                    const count = Number(event.target.value)
-                    setHoleCount(count)
-                    if (roi.nudgedHoles.length > 0) {
-                      setStatus(`Ring rebuilt — ${roi.nudgedHoles.length} hand-adjusted hole(s) reset.`)
+              <div className="roi-section">
+                <h3>Size and position</h3>
+                <label>
+                  Holes
+                  <input
+                    type="number"
+                    min={4}
+                    max={40}
+                    value={holeCount}
+                    title="Regenerates the ring at this hole count. Hand-nudged holes reset -- a different count has no correspondence to keep."
+                    onChange={(event) => {
+                      const count = Number(event.target.value)
+                      setHoleCount(count)
+                      if (roi.nudgedHoles.length > 0) {
+                        setStatus(`Ring rebuilt — ${roi.nudgedHoles.length} hand-adjusted hole(s) reset.`)
+                      }
+                      setRoi(regenerateRing(roi, { ...roi.ring, holeCount: count }))
+                      setSelectedHole(null)
+                    }}
+                  />
+                </label>
+                <label>
+                  Ring radius (px)
+                  <input
+                    type="number"
+                    min={1}
+                    value={Math.round(roi.ring.ringRadius)}
+                    onChange={(event) => setRoi(scaleRing(roi, Number(event.target.value)))}
+                  />
+                </label>
+                <label>
+                  Platform radius (px)
+                  <input
+                    type="number"
+                    min={1}
+                    value={Math.round(roi.platformRadius)}
+                    onChange={(event) => setRoi(setPlatformRadius(roi, Number(event.target.value)))}
+                  />
+                </label>
+                <label>
+                  Hole radius (px)
+                  <input
+                    type="number"
+                    min={1}
+                    value={Math.round(roi.holeRadius)}
+                    onChange={(event) => setRoi(setHoleRadius(roi, Number(event.target.value)))}
+                  />
+                </label>
+                <label>
+                  Rotation (°)
+                  <input
+                    type="number"
+                    step={1}
+                    value={rotationDegrees}
+                    onChange={(event) =>
+                      setRoi(
+                        rotateRing(
+                          roi,
+                          (Number(event.target.value) * Math.PI) / 180 - roi.ring.rotation,
+                        ),
+                      )
                     }
-                    setRoi(regenerateRing(roi, { ...roi.ring, holeCount: count }))
-                    setSelectedHole(null)
-                  }}
-                />
-              </label>
-              <label>
-                Ring radius (px)
-                <input
-                  type="number"
-                  min={1}
-                  value={Math.round(roi.ring.ringRadius)}
-                  onChange={(event) => setRoi(scaleRing(roi, Number(event.target.value)))}
-                />
-              </label>
-              <label>
-                Platform radius (px)
-                <input
-                  type="number"
-                  min={1}
-                  value={Math.round(roi.platformRadius)}
-                  onChange={(event) => setRoi(setPlatformRadius(roi, Number(event.target.value)))}
-                />
-              </label>
-              <label>
-                Hole radius (px)
-                <input
-                  type="number"
-                  min={1}
-                  value={Math.round(roi.holeRadius)}
-                  onChange={(event) => setRoi(setHoleRadius(roi, Number(event.target.value)))}
-                />
-              </label>
-              <label>
-                Rotation (°)
-                <input
-                  type="number"
-                  step={1}
-                  value={rotationDegrees}
-                  onChange={(event) =>
-                    setRoi(
-                      rotateRing(
-                        roi,
-                        (Number(event.target.value) * Math.PI) / 180 - roi.ring.rotation,
-                      ),
-                    )
-                  }
-                />
-              </label>
+                  />
+                </label>
+              </div>
 
-              <h3>Escape target</h3>
-              <label>
-                Target hole number
-                <input
-                  type="number"
-                  min={1}
-                  max={roi.holes.length}
-                  value={roi.targetHole === null ? '' : roi.targetHole + 1}
-                  placeholder="none"
-                  onChange={(event) => {
-                    const raw = event.target.value
-                    if (raw === '') {
-                      setRoi(setTargetHole(roi, null))
-                      return
-                    }
-                    const n = Math.round(Number(raw))
-                    if (Number.isFinite(n) && n >= 1 && n <= roi.holes.length) {
-                      setRoi(setTargetHole(roi, n - 1))
-                    }
-                  }}
-                />
-              </label>
-              <p className="hint">
-                Set directly by number, or select a hole below and press T.
-              </p>
+              <div className="roi-section">
+                <h3>Escape target</h3>
+                <label>
+                  Target hole number
+                  <input
+                    type="number"
+                    min={1}
+                    max={roi.holes.length}
+                    value={roi.targetHole === null ? '' : roi.targetHole + 1}
+                    placeholder="none"
+                    title="Or select a hole below and press T."
+                    onChange={(event) => {
+                      const raw = event.target.value
+                      if (raw === '') {
+                        setRoi(setTargetHole(roi, null))
+                        return
+                      }
+                      const n = Math.round(Number(raw))
+                      if (Number.isFinite(n) && n >= 1 && n <= roi.holes.length) {
+                        setRoi(setTargetHole(roi, n - 1))
+                      }
+                    }}
+                  />
+                </label>
+              </div>
 
-              <h3>Selected hole</h3>
-              {selectedHole === null ? (
-                <p className="hint">Click a hole to select it. Arrow keys then nudge it.</p>
-              ) : (
-                <>
-                  <p>
-                    Hole {selectedHole + 1} of {roi.holes.length}
-                    {roi.nudgedHoles.includes(selectedHole) ? ' (moved by hand)' : ' (auto-placed)'}
-                  </p>
-                  <div className="button-row">
-                    <button type="button" onClick={() => setRoi(setTargetHole(roi, selectedHole))}>
-                      Mark as escape target
-                    </button>
-                    <button type="button" onClick={() => moveSelectedHole(-1, 0)}>←</button>
-                    <button type="button" onClick={() => moveSelectedHole(1, 0)}>→</button>
-                    <button type="button" onClick={() => moveSelectedHole(0, -1)}>↑</button>
-                    <button type="button" onClick={() => moveSelectedHole(0, 1)}>↓</button>
-                  </div>
-                  <p className="hint">
-                    Arrow keys nudge 1px, Shift for 10px, T marks the target. With nothing
-                    selected the arrows move the whole maze.
-                  </p>
-                </>
-              )}
+              <div className="roi-section">
+                <h3>Selected hole</h3>
+                {selectedHole === null ? (
+                  <p className="hint">Click a hole to select it, then nudge it with arrow keys.</p>
+                ) : (
+                  <>
+                    <p>
+                      Hole {selectedHole + 1} of {roi.holes.length}
+                      {roi.nudgedHoles.includes(selectedHole) ? ' (moved by hand)' : ' (auto-placed)'}
+                    </p>
+                    <div className="button-row">
+                      <button type="button" onClick={() => setRoi(setTargetHole(roi, selectedHole))}>
+                        Mark as escape target
+                      </button>
+                      <button
+                        type="button"
+                        title="Nudge left (Shift = 10px)"
+                        onClick={() => moveSelectedHole(-1, 0)}
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        title="Nudge right (Shift = 10px)"
+                        onClick={() => moveSelectedHole(1, 0)}
+                      >
+                        →
+                      </button>
+                      <button
+                        type="button"
+                        title="Nudge up (Shift = 10px)"
+                        onClick={() => moveSelectedHole(0, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        title="Nudge down (Shift = 10px)"
+                        onClick={() => moveSelectedHole(0, 1)}
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <p className="hint">Arrows nudge 1px (Shift = 10px). T marks the target.</p>
+                  </>
+                )}
+              </div>
 
-              <h3>Status</h3>
-              <ul className="checklist">
-                <li>{completeness.hasRing ? '✓' : '·'} Holes placed ({roi.holes.length})</li>
-                <li>
-                  {completeness.hasTarget ? '✓' : '·'} Escape target marked
-                  {roi.targetHole !== null ? ` (hole ${roi.targetHole + 1})` : ''}
-                </li>
-                <li>{completeness.hasScale ? '✓' : '·'} Platform diameter entered</li>
-              </ul>
-              <p className="hint">
-                Hand-corrected holes:{' '}
-                {roi.nudgedHoles.length > 0
-                  ? roi.nudgedHoles.map((i) => i + 1).join(', ')
-                  : 'none'}
-              </p>
-
-              <div className="button-row">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void saveRoiTemplate(roi, video.name)
-                    setTemplateName(video.name)
-                    setStatus('Saved as the starting point for other videos.')
-                  }}
-                >
-                  Reuse this layout on other videos
-                </button>
+              <div className="roi-section">
+                <h3>Status</h3>
+                <ul className="checklist">
+                  <li>{completeness.hasRing ? '✓' : '·'} Holes placed ({roi.holes.length})</li>
+                  <li>
+                    {completeness.hasTarget ? '✓' : '·'} Escape target marked
+                    {roi.targetHole !== null ? ` (hole ${roi.targetHole + 1})` : ''}
+                  </li>
+                  <li>{completeness.hasScale ? '✓' : '·'} Platform diameter entered</li>
+                </ul>
+                {roi.nudgedHoles.length > 0 && (
+                  <p className="hint">Hand-corrected: {roi.nudgedHoles.map((i) => i + 1).join(', ')}</p>
+                )}
+                <div className="button-row">
+                  <button
+                    type="button"
+                    title="Save this layout as the starting point the next video you open proposes."
+                    onClick={() => {
+                      void saveRoiTemplate(roi, video.name)
+                      setTemplateName(video.name)
+                      setStatus('Saved as the starting point for other videos.')
+                    }}
+                  >
+                    Reuse this layout on other videos
+                  </button>
+                </div>
               </div>
             </>
           )}

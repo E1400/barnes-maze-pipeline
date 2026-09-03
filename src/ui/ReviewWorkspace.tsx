@@ -1,19 +1,24 @@
 /**
  * Steps 4-5 combined: review the track, correct it, and see (and correct)
- * the hole investigations it produces -- all in one workspace, the video
- * viewer and the investigation list side by side rather than in separate
- * sections a reviewer has to scroll between (Elvis's feedback, 2026-09-03).
+ * the hole investigations it produces.
  *
- * `useTrackReview` is called once here, not inside each half, so the viewer
- * and the investigation list's "jump to this frame" buttons share the exact
- * same frame index and corrected track.
+ * Layout follows how it's actually used: the video and its computed stats
+ * stacked on the left (look at the animal, then see the numbers it
+ * produced), the full investigation list on the right so it's beside the
+ * viewer, not a separate section scrolled to (Elvis's feedback,
+ * 2026-09-03). `useTrackReview` and `useInvestigations` are both called
+ * once, here, so every child shares one frame index and one computed
+ * investigation list -- a "jump to this row" button and the viewer have to
+ * agree on what "this frame" means.
  */
 
 import type { RoiDefinition } from '../core/roi.ts'
 import { roiCompleteness } from '../core/roi.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
-import InvestigationPanel from './InvestigationPanel.tsx'
+import InvestigationTable from './InvestigationTable.tsx'
 import TrackViewer from './TrackViewer.tsx'
+import TrialStats from './TrialStats.tsx'
+import { useInvestigations } from './useInvestigations.ts'
 import { useTrackReview } from './useTrackReview.ts'
 import type { TrackingJob } from './useTrackingJob.ts'
 
@@ -25,6 +30,7 @@ interface Props {
 
 export default function ReviewWorkspace({ video, roi, trackingJob }: Props) {
   const review = useTrackReview(video, trackingJob)
+  const investigations = useInvestigations(video, roi, review.effective)
   const completeness = roiCompleteness(roi)
 
   if (!roi || !completeness.hasRing) {
@@ -36,7 +42,7 @@ export default function ReviewWorkspace({ video, roi, trackingJob }: Props) {
     )
   }
 
-  if (!review.tracks) {
+  if (!review.tracks || !review.effective) {
     return (
       <section aria-labelledby="review-heading" className="review-workspace">
         <h2 id="review-heading">4. Review, correct, and detect hole visits</h2>
@@ -53,8 +59,11 @@ export default function ReviewWorkspace({ video, roi, trackingJob }: Props) {
         The investigation list on the right updates live.
       </p>
       <div className="review-grid">
-        <TrackViewer video={video} roi={roi} review={review} />
-        <InvestigationPanel video={video} roi={roi} review={review} />
+        <div className="review-column">
+          <TrackViewer video={video} roi={roi} review={review} />
+          <TrialStats video={video} roi={roi} effective={review.effective} investigations={investigations.investigations} />
+        </div>
+        <InvestigationTable video={video} roi={roi} review={review} inv={investigations} />
       </div>
     </section>
   )

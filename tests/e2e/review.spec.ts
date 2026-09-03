@@ -88,7 +88,7 @@ test('expand toggle, click-to-jump, drag-to-correct, and revert', async ({ page 
   await expect(section.locator('.correction-toolbar .hint')).not.toHaveText('Corrected: none')
   await expect(svg.locator('circle.correction-point--manual')).toHaveCount(2)
 
-  await section.getByRole('button', { name: 'Revert this frame to automatic' }).click()
+  await section.getByRole('button', { name: 'Undo correction on this frame' }).click()
   await expect(section.locator('.correction-toolbar .hint')).toHaveText('Corrected: none')
   await expect(svg.locator('circle.correction-point--manual')).toHaveCount(0)
 })
@@ -148,8 +148,8 @@ test('computes and displays hole investigations and measures for a tracked video
   const section = await trackFixture(page, { calibrate: true })
   await section.locator('.investigation-table').waitFor({ timeout: 10_000 })
 
-  await expect(section.locator('.stat-card', { hasText: 'Primary latency' })).toContainText(/\d/)
-  await expect(section.locator('.stat-card', { hasText: 'Path length' })).toContainText(/\d/)
+  await expect(section.locator('.stat-card', { hasText: 'To target' })).toContainText(/\d/)
+  await expect(section.locator('.stat-card', { hasText: 'Length' })).toContainText(/\d/)
   await expect(section.locator('tr.investigation-row--target')).not.toHaveCount(0)
 })
 

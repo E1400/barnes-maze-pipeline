@@ -266,6 +266,13 @@ a {
 
 .roi {
   margin-top: 2.5rem;
+  /* Same breakout as the review workspace -- both are edit-heavy screens
+     that want real width, not the narrower reading margin the rest of the
+     app uses (Elvis's feedback, 2026-09-03). */
+  width: min(90rem, calc(100vw - 2.5rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .roi-layout {
@@ -273,6 +280,14 @@ a {
   flex-wrap: wrap;
   gap: 1.5rem;
   align-items: flex-start;
+}
+
+.roi-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  margin-bottom: 0.875rem;
 }
 
 .roi-toolbar {
@@ -309,7 +324,7 @@ a {
 
 .roi-controls h3 {
   font-size: 1rem;
-  margin: 1.25rem 0 0.5rem;
+  margin: 0 0 0.5rem;
 }
 
 .roi-controls label {
@@ -392,18 +407,18 @@ a {
 }
 
 /*
- * Translucent, not solid: a solid fill hid the mouse the moment it stepped
- * into the target hole, which is exactly the moment that matters most to
- * watch (Elvis's feedback, 2026-09-03). The fill still has to be a real
- * (non-`none`) painted colour, just a partly-transparent one -- SVG hit-
- * testing cares whether a shape *has* a fill, not its opacity, so this stays
- * draggable at its centre exactly like every other hole (see mistake 14 in
- * AI_NOTES.md for what happens when that isn't true). Distinguished from a
- * regular hole by colour and the outer ring below, not by being the only
- * solid one.
+ * Fully see-through centre, coloured rim only (revised again, 2026-09-03):
+ * even a translucent fill dimmed the mouse at the exact moment it entered
+ * the target hole. `fill: transparent` -- NOT `fill: none` -- is the reason
+ * this stays draggable: SVG hit-testing cares whether a shape *has* a fill
+ * (transparent counts, none doesn't), not its opacity. Confirmed directly
+ * with a Playwright center-click test before shipping this, given mistake
+ * 14 in AI_NOTES.md is exactly what `fill: none` breaks here. Distinguished
+ * from a regular hole by the red rim and the outer ring below -- a shape
+ * difference, not just colour, so it still reads in greyscale.
  */
 .roi-hole--target {
-  fill: rgba(226, 69, 60, 0.35);
+  fill: transparent;
   stroke: #e2453c;
   stroke-width: 2;
 }
@@ -657,12 +672,20 @@ a {
 
 .review-workspace {
   margin-top: 2.5rem;
+  /* Breaks out of #root's narrower 60rem reading width -- this is the one
+     screen meant to be lived in while reviewing a trial, and a full table
+     plus the viewer needs real width, not the margins a form-like page
+     wants everywhere else (Elvis's feedback, 2026-09-03). */
+  width: min(90rem, calc(100vw - 2.5rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .review-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(20rem, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) minmax(26rem, 1.1fr);
+  gap: 1.5rem;
   align-items: start;
 }
 
@@ -670,6 +693,12 @@ a {
   .review-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.review-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .track-viewer {
@@ -734,51 +763,37 @@ a {
   stroke-width: 4px;
 }
 
-/* --- Investigation panel (step 5 content, beside the viewer) --- */
+/* --- Trial stats (under the viewer) --- */
 
-.investigation-panel {
+.stat-groups {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 0.875rem;
-}
-
-.detection-criteria {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-  border: 0;
-  padding: 0 0 0.75rem;
-  margin: 0 0 0.75rem;
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  gap: 0.875rem;
 }
 
-.detection-criteria legend {
+.stat-group h4 {
+  margin: 0;
   font-size: 0.8125rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-muted);
-  padding: 0;
 }
 
-.detection-criteria label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9375rem;
+.stat-group-desc {
+  margin: 0.125rem 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
 }
 
-.detection-criteria input {
-  width: 5rem;
-  padding: 0.25rem 0.375rem;
-}
-
-.stat-grid {
+.stat-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
 .stat-card {
@@ -804,6 +819,49 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Investigation table (beside the viewer) --- */
+
+.investigation-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.875rem;
+}
+
+.detection-criteria {
+  border: 0;
+  padding: 0 0 0.75rem;
+  margin: 0 0 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.detection-criteria legend {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.detection-criteria-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.detection-criteria label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.detection-criteria input {
+  width: 5rem;
+  padding: 0.25rem 0.375rem;
+}
+
 .investigation-table-header {
   display: flex;
   flex-wrap: wrap;
@@ -818,30 +876,16 @@ a {
   font-size: 1rem;
 }
 
-.investigation-table-scroll {
-  max-height: 26rem;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-}
-
 .investigation-table {
   border-collapse: collapse;
   width: 100%;
   font-size: 0.875rem;
 }
 
-.investigation-table th {
-  position: sticky;
-  top: 0;
-  background: var(--surface);
-  z-index: 1;
-}
-
 .investigation-table th,
 .investigation-table td {
   border-bottom: 1px solid var(--border);
-  padding: 0.25rem 0.5rem;
+  padding: 0.3rem 0.5rem;
   text-align: left;
   white-space: nowrap;
 }

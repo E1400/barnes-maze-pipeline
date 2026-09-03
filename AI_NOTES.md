@@ -533,3 +533,45 @@ seeding a freshly detected ROI, live unit-converted detection criteria,
 jump-to-frame, add/edit/delete, and all of it surviving a reload) via
 throwaway Playwright scripts before writing the permanent e2e coverage, same
 methodology as every prior chunk.
+
+**Workspace polish from direct UI feedback (this branch).** Elvis flagged
+the target hole's fill again -- a translucent centre (this session's earlier
+fix) still dimmed the mouse at the exact moment it mattered. Given that this
+exact property had already caused one real bug (mistake 14, a solid fill
+breaking drag), I did not just change `fill` to `transparent` and move on:
+wrote a two-circle minimal HTML page (`fill: none` vs `fill: transparent`)
+and drove a Playwright center-click at each, confirming empirically that
+`none` fails to register the click and `transparent` succeeds, before
+touching the real component. That is the actual reason `fill: transparent`
+is provably safe here and not just plausible.
+
+A second scare, and a useful contrast with the test-environment false alarm
+earlier this session: verifying the new `.roi`/`.review-workspace` width
+breakout (`left: 50%; transform: translateX(-50%)`), an ad hoc drag script
+produced a wildly wrong result -- a hole dragged 15px down landed over 300px
+away. Rather than assume the CSS breakout broke `getScreenCTM()`-based
+coordinate mapping (a real enough possibility given a CSS transform was
+newly in the ancestor chain), I re-ran the identical drag with the one thing
+my throwaway script had skipped that the real test suite never does --
+`scrollIntoViewIfNeeded()` first -- and it landed exactly on target. The
+element had been partly below the viewport; dragging into that state does
+something Playwright/Chromium don't handle cleanly, unrelated to the CSS
+change. Confirmed by checking `getScreenCTM()` directly (a clean
+translation/scale matrix, nothing exotic) and by the full roi.spec.ts drag
+test passing against the real breakout CSS in the suite run right after.
+Two "the code is broken" alarms in one session, two different actual causes
+(a Vite HMR race, an unscrolled drag target), zero real product bugs behind
+either -- worth noticing as a pattern: a scary result is a reason to isolate
+and check, not a reason to assume the newest change is guilty.
+
+Real redundancy Elvis caught that I'd missed by only checking each panel in
+isolation: after merging steps 4-5, the tracking panel (step 3) still showed
+its own hole-visit/escape frame counts, which is exactly what the new
+investigation table one step down already covers with actual context (which
+hole, when). Simplified to a single tracking-QA line. Also caught after that
+first fix: the status line and my new one-line summary sat back to back
+saying almost the same thing ("741 frames tracked." / "741 of 741 frames
+tracked.") -- merged into the one status line rather than two. Screenshotted
+the finished step 3/4 layout at 1600px width before calling this done,
+since a redundant second line is exactly the kind of thing a component-only
+diff or unit test would never catch.

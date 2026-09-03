@@ -340,14 +340,51 @@ just change code silently, when a decision changes.
   the video viewer and the investigation list side by side rather than
   stacked sections a reviewer scrolled between (Elvis's feedback). Data
   (tracks, corrections, frame index, the decoded frame) moved into a shared
-  hook, `useTrackReview` (`src/ui/useTrackReview.ts`), called once by the new
+  hook, `useTrackReview` (`src/ui/useTrackReview.ts`), called once by
   `ReviewWorkspace` and passed to `TrackViewer` (the rendering half of the
-  old `CorrectionViewer`) and `InvestigationPanel` (the old `MeasuresPanel`'s
-  content) as props — the two halves would otherwise each load their own
-  copy of the track and have no way to share one frame index, which is
-  exactly what a "jump to this investigation" button needs. Gating
-  ("define the maze first" / "track the video first") is asserted once at
-  the workspace level, not duplicated per half.
+  old `CorrectionViewer`) and the investigation components as props — the
+  pieces would otherwise each load their own copy of the track and have no
+  way to share one frame index, which is exactly what a "jump to this
+  investigation" button needs. Gating ("define the maze first" / "track the
+  video first") is asserted once at the workspace level, not duplicated per
+  half.
+- **Review workspace layout, revised (2026-09-03): stats under the viewer,
+  the full table beside it, no inner scrollbar.** The investigation logic
+  (threshold params + edits + the computed list) was pulled out of a single
+  `InvestigationPanel` into its own hook, `useInvestigations`
+  (`src/ui/useInvestigations.ts`), so it can be called once and shared by
+  two separately *positioned* components: `TrialStats` (the computed numbers,
+  stacked under the viewer — you look at the animal, then see what it
+  produced) and `InvestigationTable` (the full row-by-row list, beside the
+  viewer, not the viewer's own stats). The table is no longer capped at a
+  scrolling sub-panel height — a reviewer comparing a row against the video
+  shouldn't lose rows to an inner scrollbar (Elvis's feedback); the table
+  takes whatever height it needs and the page scrolls, same as every other
+  long list in the app. Both this section and the ROI editor (step 2, same
+  complaint, same fix) now break out of the app's normal 60rem reading width
+  to `min(90rem, 100vw - 2.5rem)` via the `left: 50%; transform:
+  translateX(-50%)` full-bleed centering technique — these are the two
+  screens meant to be lived in while working a trial, not read top to
+  bottom once.
+- **Stat cards grouped with one description per group, not per card
+  (2026-09-03).** "Primary latency" and "Total latency" used to each stand
+  alone with no explanation; now "Latency" is a group heading with one
+  sentence ("Time from the start of the trial") and the two cards under it
+  just say "To target" / "To escape" — short because the group already gave
+  the context. Same pattern for Errors, Path, and Quadrant time. Quadrant
+  time specifically kept (not dropped, despite Elvis's uncertainty about its
+  value) because a target-quadrant search bias is a standard spatial-memory
+  readout in this literature, same family as the Morris water-maze probe
+  trial — now labelled and described as such rather than left as four
+  unexplained numbers.
+- **`TrackingPanel` (step 3) no longer duplicates step 4's numbers.** It used
+  to show a 4-line checklist (Tracked/Lost/In a hole/Escaped frame counts) —
+  the last two are exactly what step 4's investigation table and latency
+  cards already cover, with real context (which hole, when), so showing bare
+  frame counts here again read as redundant, unexplained clutter (Elvis's
+  feedback). Now a single status line: `"{tracked} of {total} frames
+  tracked{, N lost (%)}"` — tracking QA only, LOST being the one thing this
+  step is actually responsible for confirming honestly.
 - **Manual investigation editing (2026-09-03), `src/core/investigationEdits.ts`:**
   add/delete/edit for the hole-investigation list, an overlay on the
   detector's output exactly like `corrections.ts` is for positions — the
@@ -390,15 +427,19 @@ just change code silently, when a decision changes.
   it's set — a shape difference, not just a colour one) rather than being
   the third subsection down, since real-world units are load-bearing for
   every measure downstream, not a footnote.
-- **`.roi-hole--target`'s fill is translucent, not solid (revised
-  2026-09-03).** A solid fill (the original fix for mistake 14, see below)
-  hid the mouse at the exact moment it entered the target hole — the one
-  moment a reviewer most needs to see (Elvis's feedback). Still a real,
-  non-`none` fill (`rgba(226, 69, 60, 0.35)`) so it stays exactly as
-  draggable as before — SVG hit-testing cares whether a shape *has* a fill,
-  not its opacity. All hole circles got thinner strokes at the same time,
-  same reasoning: legible at a glance, never thick enough to cover the
-  animal underneath.
+- **`.roi-hole--target`'s fill is fully transparent, not solid or translucent
+  (revised twice now, 2026-09-03).** A solid fill (the original fix for
+  mistake 14, see below) hid the mouse at the exact moment it entered the
+  target hole. A translucent fill was the first correction, but still dimmed
+  it. The actual answer: `fill: transparent` — a real value, distinct from
+  `fill: none` — so the centre is completely see-through while the shape
+  stays exactly as draggable as before. SVG hit-testing cares whether a
+  shape *has* a fill (transparent counts, none doesn't), not its opacity;
+  confirmed directly with a Playwright centre-click test before shipping
+  this specific change, given how expensive it's already been to get this
+  one property wrong once (mistake 14). All hole circles got thinner
+  strokes at the same time, same reasoning: legible at a glance, never
+  thick enough to cover the animal underneath.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   parameters, per-video investigation threshold, manual investigation edits,
   the global default platform diameter) — a refresh must never lose

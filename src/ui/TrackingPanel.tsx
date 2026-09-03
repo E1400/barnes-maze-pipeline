@@ -25,13 +25,6 @@ interface Props {
   readonly trackingJob: TrackingJob
 }
 
-const STATE_LABEL: Record<FrameTrack['state'], string> = {
-  TRACKED: 'Tracked',
-  LOST: 'Tracking lost',
-  OCCLUDED_IN_HOLE: 'In a hole',
-  IN_ESCAPE_BOX: 'Escaped',
-}
-
 export default function TrackingPanel({ video, roi, trackingJob }: Props) {
   const [tracks, setTracks] = useState<readonly FrameTrack[] | null>(null)
 
@@ -67,6 +60,14 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
   for (const t of tracks ?? []) counts[t.state] = (counts[t.state] ?? 0) + 1
   const total = tracks?.length ?? 0
 
+  const doneText = tracks
+    ? `${counts.TRACKED ?? 0} of ${total} frames tracked${
+        (counts.LOST ?? 0) > 0
+          ? `, ${counts.LOST} lost (${(((counts.LOST ?? 0) / total) * 100).toFixed(1)}%)`
+          : ''
+      }.`
+    : 'Not tracked yet.'
+
   const statusText = isThisVideoTracking
     ? trackingJob.activeProgress
       ? `${trackingJob.activeProgress.phase === 'background' ? 'Sampling the background' : 'Tracking'}: frame ${trackingJob.activeProgress.framesProcessed} of ${trackingJob.activeProgress.totalFrames}`
@@ -75,9 +76,7 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
       ? 'Another video is tracking in the background. This will start once it finishes.'
       : trackingJob.activeError
         ? trackingJob.activeError
-        : tracks
-          ? `${total} frames tracked.`
-          : 'Not tracked yet.'
+        : doneText
 
   return (
     <section aria-labelledby="tracking-heading" className="tracking">
@@ -87,7 +86,16 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
         <p className="hint">Mark an escape target above to detect the escape separately from other holes.</p>
       )}
 
-      <p className="status" role="status" aria-live="polite">
+      <p
+        className="status"
+        role="status"
+        aria-live="polite"
+        title={
+          tracks
+            ? "Frames the tracker lost the animal entirely -- never guessed at, always counted honestly. Whether a lost stretch matters, and what happened during it (a hole visit, an escape, or just a bad frame), is what the panel below works out."
+            : undefined
+        }
+      >
         {statusText}
       </p>
 
@@ -98,17 +106,6 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
       >
         {tracks ? 'Re-track this video' : 'Track this video'}
       </button>
-
-      {tracks && (
-        <ul className="checklist">
-          {(Object.keys(STATE_LABEL) as FrameTrack['state'][]).map((state) => (
-            <li key={state}>
-              {STATE_LABEL[state]}: {counts[state] ?? 0} frame{(counts[state] ?? 0) === 1 ? '' : 's'}
-              {total > 0 ? ` (${(((counts[state] ?? 0) / total) * 100).toFixed(1)}%)` : ''}
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   )
 }

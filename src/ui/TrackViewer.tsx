@@ -206,9 +206,14 @@ export default function TrackViewer({ video, roi, review }: Props) {
         <button
           type="button"
           disabled={!review.corrections.has(frameIndex)}
+          title={
+            review.corrections.has(frameIndex)
+              ? "Undo your manual fix for this frame and restore the tracker's original detected position."
+              : 'No manual correction on this frame to undo.'
+          }
           onClick={() => review.revertCorrection()}
         >
-          Revert this frame to automatic
+          Undo correction on this frame
         </button>
       </div>
 
