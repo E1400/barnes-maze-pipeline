@@ -276,6 +276,24 @@ was wrong about it, what the tell was, how you caught it.
     genuinely never reaches its target -- correctly still doesn't, its tail
     sitting outside the proximity radius with a flat, non-shrinking area.
 
+16. **A clean `tsc --noEmit -p .` that wasn't proof of anything, same shape
+    as mistake 3.** While verifying `useCohortData.ts` and
+    `VisualizationsPanel.tsx`, `tsc --noEmit -p .` reported zero errors. A few
+    steps later, `npm run build` (`tsc -b && vite build`) failed on three real
+    type errors in those exact two files: `CohortVideo.measures` typed as the
+    plain `TrialMeasures` when the value actually flowing through it carries
+    `EffectiveInvestigation`'s wider `kind` (includes `'manual'`), and two SVG
+    `<text title="...">` props that don't exist in React's SVG typings. `-p .`
+    against the root, references-only tsconfig doesn't actually build the
+    referenced project configs the way `-b` does, so it was validating
+    almost nothing. Fixed the real errors (widened `CohortVideo.measures` to
+    the same `Omit<TrialMeasures,'investigations'> & {...}` shape
+    `applyMeasureOverrides` already uses for exactly this reason; moved the
+    two `title` props into `<title>` child elements, the pattern already used
+    elsewhere in the same file). Fixed the process gap by using
+    `npm run typecheck` (`tsc -b`) from here on, documented in CLAUDE.md's
+    Commands section so it isn't relearned next session.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
@@ -706,3 +724,81 @@ export test in favor of trusting the loop logic once the single-video case
 was confirmed end-to-end (real download captured, CSV content read back and
 checked against the on-screen numbers) -- a judgment call to make the
 verification proportionate to the risk, not skip it.
+
+**Nose-tracking smoothing, "test50 still random," export restructuring,
+sticky header, and visualizations (this branch).** Elvis reported four
+things at once; treated each on its own evidence rather than assuming they
+shared a cause.
+
+Re-tracked `test50` fresh, both before and after widening
+`NOSE_DIRECTION_WINDOW` (5→10) and raising `MIN_INFORMATIVE_SPEED`
+(0.5→1.5px/frame), and got **Serial** both times (92% then 95% order
+consistency), never Random -- could not reproduce what Elvis is seeing.
+Reasoned about it rather than guessing further: `holeOrderScore` and
+`directness` are mathematically independent of *which* hole is the target
+when the target is never reached (`test50`'s case), so a different chosen
+target hole shouldn't explain a label flip either. Landed on stale cached
+track data as the likely explanation -- tracking results live in IndexedDB
+and only investigations/strategy recompute live from those *cached* tracks
+on reload, so the smoothing fix only changes what a *fresh* re-track writes,
+not what an already-tracked video has stored -- and reported that
+transparently rather than declaring it fixed. **Genuinely unresolved**: no
+confirmation yet that a re-track resolves it on Elvis's end.
+
+Verified the smoothing change itself two ways, not just one: unit tests
+(widened the existing reversal-sequence test so it's still long enough to
+flush the wider window post-widening rather than failing for an unrelated
+reason; added a new test asserting small back-and-forth jitter that would
+have crossed the *old* 0.5px/frame threshold no longer flips the nose), and
+real re-tracked `test50` data pulled from IndexedDB (investigation count
+119 → 105, consistent with less spurious jitter generating fewer noise
+events, not just a different number for its own sake).
+
+Verified the export restructuring and the new visualizations panel together
+in one real-browser pass rather than two, per the token-conservation
+instruction -- but not against a full CV re-track, which would cost minutes
+per clip for a UI-layer change that doesn't touch the CV pipeline at all.
+Instead seeded IndexedDB directly with two synthetic-but-schema-real videos
+(same `StoredVideo`/`StoredRoi`/`StoredTrack` shapes a real tracked video
+would produce -- one that reaches its target and escapes, one that never
+does) and drove the real app against them: confirmed the combined export
+section's investigation count matched the seeded data exactly (5, matching
+2 + 3 real hand-placed proximity visits), a per-video CSV download's row
+count matched, the occupancy heatmap rendered non-zero cells, the hole-visit
+raster's bar count matched each video's own visit count and updated on
+switching the video picker, and the learning curve's "never reached" marker
+fired exactly twice -- both from the video that never found its target --
+and not at all for the one that did. Zero console errors across the whole
+pass. This is real rendering and real IndexedDB reads through the actual
+`useCohortData`/`computeOccupancyGrid`/`groupConsecutiveInvestigations`
+code paths, not a mock -- the only thing synthetic is which pixels a
+(nonexistent, tiny placeholder) video blob contains, which none of the code
+under test reads.
+
+Verified the sticky header by measuring the `<th>` element's actual screen Y
+position before and after scrolling the table 300px, rather than trusting
+that `position: sticky` compiled -- identical position both times confirmed
+it's genuinely sticky, not just present in the CSS.
+
+**e2e timeouts investigated, not assumed to be a code regression.** The full
+suite (4 parallel workers) failed 4 `review.spec.ts` tests, all on the same
+120s `waitFor` for a real tracking run to finish. Did not take "my branch
+touched `tracking.ts`" as circumstantial guilt: re-ran `review.spec.ts`
+alone, serially (`--workers=1`, removing worker-vs-worker CPU contention as
+a variable), and got 3 *different* failures with zero overlap with the first
+run's 4 -- if this were a deterministic regression in the tracking pipeline
+itself, the same tests (the same video, the same frame count) should fail
+both times. They didn't. Then read this branch's actual diff against `main`
+rather than reasoning from memory: the only change inside `tracking.ts` is
+two named constants (`NOSE_DIRECTION_WINDOW` 5→10, `MIN_INFORMATIVE_SPEED`
+0.5→1.5) inside `assignNose`, both still O(1) per frame -- no loop, no data
+structure, no new pass added -- incapable of producing a 2-3x slowdown on
+its own, and nothing else on this branch touches the decode/detection/
+worker path at all (`git diff main --stat`: only `tracking.ts`,
+`tracking.test.ts`, plus UI/CSS/docs). Conclusion: this is the existing
+120s-per-tracking-run budget being tight against this machine's real,
+variable load at the moment (this session already had an orphaned dev
+server left running on another port, among other things) -- a pre-existing
+margin problem in the test suite's timeout, not something this branch
+introduced. Not silently waved off: written down here, and worth revisiting
+if it recurs consistently rather than intermittently.

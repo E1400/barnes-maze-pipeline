@@ -72,26 +72,9 @@ a {
   max-width: 46rem;
 }
 
-.milestones {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.milestones li {
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  background: var(--surface);
-  padding: 0.625rem 0.875rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  align-items: baseline;
-}
-
-.milestones .status-chip {
+/* Was scoped to the now-removed "Remaining steps" placeholder list; kept as
+   a standalone chip since VisualizationsPanel reuses it for strategy labels. */
+.status-chip {
   font-size: 0.8125rem;
   color: var(--text-muted);
   border: 1px solid var(--border);
@@ -1012,6 +995,16 @@ a {
   white-space: nowrap;
 }
 
+/* Column names stay visible while a long list scrolls inside
+   .investigation-table-scroll, instead of scrolling away with row 1
+   (Elvis's feedback, 2026-09-04). */
+.investigation-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
 .investigation-row--target {
   font-weight: 700;
   background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -1036,4 +1029,207 @@ a {
 .investigation-actions button {
   padding: 0.15rem 0.5rem;
   font-size: 0.8125rem;
+}
+
+/* --- Export panel (step 5) --- */
+
+.export-panel {
+  margin-top: 2.5rem;
+}
+
+.export-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  margin-top: 1rem;
+}
+
+.export-group h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.export-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.export-table th,
+.export-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+}
+
+.export-table .button-row {
+  margin: 0;
+}
+
+.export-table button {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.viz-panel {
+  margin-top: 2.5rem;
+}
+
+.viz-panel h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.viz-video-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.viz-chart {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.viz-chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Sequential single-hue scale (opacity, not hue) so it reads correctly for
+   every form of colorblindness -- CLAUDE.md's "no meaning encoded by color
+   alone" -- with an exact frame count in each cell's <title> besides. */
+.viz-heat-cell {
+  fill: var(--accent);
+  stroke: none;
+}
+
+.viz-raster-row {
+  fill: var(--bg);
+  stroke: var(--border);
+}
+
+.viz-raster-row--target {
+  fill: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+
+.viz-raster-bar {
+  fill: var(--accent);
+}
+
+/* Distinguished by stroke weight, not just color, since occlusion is the
+   stronger evidence (the tracker itself confirmed the vanish) and proximity
+   the weaker, nose-only signal -- see core/events.ts. */
+.viz-raster-bar--occlusion {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.viz-raster-bar--proximity {
+  stroke: var(--text);
+  stroke-width: 0.5;
+  opacity: 0.75;
+}
+
+.viz-axis-label {
+  fill: var(--text-muted);
+  font-size: 9px;
+}
+
+.viz-axis-line {
+  stroke: var(--border);
+}
+
+.viz-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.viz-line--primary {
+  stroke: var(--accent);
+}
+
+.viz-line--total {
+  stroke: #2fae4e;
+}
+
+.viz-point--primary {
+  fill: var(--accent);
+}
+
+.viz-point--total {
+  fill: #2fae4e;
+}
+
+.viz-never-marker {
+  font-size: 12px;
+}
+
+.viz-legend-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.viz-legend-swatch--primary {
+  background: var(--accent);
+}
+
+.viz-legend-swatch--total {
+  background: #2fae4e;
+}
+
+.viz-comparison {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.viz-comparison-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) 1fr auto 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.viz-comparison-name {
+  font-weight: 600;
+}
+
+.viz-bar-track {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  height: 0.75rem;
+  overflow: hidden;
+}
+
+.viz-bar {
+  height: 100%;
+}
+
+.viz-bar--primary {
+  background: var(--accent);
+}
+
+.viz-bar--total {
+  background: #2fae4e;
+}
+
+.viz-comparison-value {
+  color: var(--text-muted);
+  white-space: nowrap;
 }

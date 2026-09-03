@@ -227,20 +227,25 @@ just change code silently, when a decision changes.
   that only ever touches `pins`, using whatever ROI is actually persisted —
   structurally impossible for a stale prop to reach storage through it,
   rather than a guard that has to be remembered to keep working.
-- **Nose direction is smoothed over `Tracker.NOSE_DIRECTION_WINDOW` (5)
-  frames, not the single previous frame** (`src/core/tracking.ts`). A
-  one-frame centroid delta is dominated by per-frame position noise and can
-  flip sign even when the animal's real motion hasn't changed, which used to
-  flip the nose to the tail for a frame and back — reported by Elvis while
-  reviewing tracked footage. Comparing against a point several frames back
-  averages that out while still responding to a genuine direction reversal
-  within a few frames. **Not yet consequential for classification** — no
-  code path uses `nose` for anything but display and manual correction;
-  `OCCLUDED_IN_HOLE`/`IN_ESCAPE_BOX` are driven entirely by centroid
-  proximity and area shrinkage — but worth having fixed now, since the
-  deferred investigation-detection feature (see above) will likely want a
-  stable nose position, and jitter undermines trust when reviewing a track
-  regardless.
+- **Nose direction is smoothed over `Tracker.NOSE_DIRECTION_WINDOW` (10,
+  widened from 5) frames, not the single previous frame**
+  (`src/core/tracking.ts`). A one-frame centroid delta is dominated by
+  per-frame position noise and can flip sign even when the animal's real
+  motion hasn't changed, which used to flip the nose to the tail for a frame
+  and back — reported by Elvis while reviewing tracked footage. Comparing
+  against a point several frames back averages that out while still
+  responding to a genuine direction reversal within a few frames. Widened
+  again, and `MIN_INFORMATIVE_SPEED` raised 0.5 → 1.5px/frame, on
+  2026-09-04: **this stopped being cosmetic once hole-investigation
+  detection shipped** — `events.ts` reads `frame.nose` directly for
+  proximity detection, so nose jitter doesn't just look bad on the
+  trajectory plot, it fabricates short-lived spurious investigation rows
+  wherever the tail end swings toward. Reported again on `test50`
+  specifically (the longest clip, most opportunity for jitter to
+  accumulate); the note above claiming this was "not yet consequential" is
+  the kind of thing that goes stale the moment a new feature starts reading
+  a field that used to be display-only — worth a reminder to re-check
+  claims like that when they get cited again, not just trust them.
 - **Two full decode passes per video** (`src/core/cv/pipeline.ts`): one to
   build the background model from ~30 frames spread across the whole clip,
   one to run detection/tracking on every frame. The background model needs
@@ -623,18 +628,92 @@ just change code silently, when a decision changes.
   unit-tested without touching SheetJS; `sheets.ts` is a thin, untested
   wrapper that turns those rows into an actual CSV or XLSX download via
   SheetJS (`xlsx` on npm), verified directly in the browser (captured a real
-  download and read its content back) rather than unit-tested. `ExportPanel`
-  recomputes every tracked video's measures/investigations/search-strategy
-  from scratch on load — corrections, investigation edits, and measure
-  overrides all applied — the same pipeline the review workspace uses, so
-  there's no separately cached export snapshot that could go stale. Every
-  row carries the tool version and the investigation threshold used, per the
+  download and read its content back) rather than unit-tested. Every row
+  carries the tool version and the investigation threshold used, per the
   brief. Note: `xlsx` roughly doubled the production bundle size (~290KB to
   ~730KB gzipped ~120KB to ~220KB) — not code-split, since this is a small
   static tool and the brief doesn't ask for a lean bundle, but worth knowing
-  if that changes. "Richer" visualizations (heatmaps, hole-visit rasters,
-  learning curves, cohort comparisons) are still open — see "Remaining
-  steps" in the app itself.
+  if that changes.
+- **`useCohortData` (2026-09-04), `src/ui/useCohortData.ts`, is the single
+  shared aggregation of every tracked video's full computed state** (track +
+  corrections + ROI + investigations + measures + search strategy), used by
+  both `ExportPanel` and `VisualizationsPanel` so the same multi-video
+  IndexedDB read-and-recompute isn't written twice. Deliberate
+  simplification: each panel still calls the hook independently (so each
+  does its own IndexedDB pass) rather than sharing one cached result between
+  them — this data is cheap to recompute (no video decoding, just IndexedDB
+  reads and in-memory math), so a shared cache wasn't worth the extra
+  plumbing for two panels that happen to sit next to each other. Its
+  `measures` field is typed `Omit<TrialMeasures, 'investigations'> &
+  { investigations: readonly EffectiveInvestigation[] }`, not the plain
+  `TrialMeasures` — `computeTrialMeasuresFromInvestigations` is itself
+  generic over the investigations type for the same reason
+  `applyMeasureOverrides` is (see that bullet above): a caller with an
+  edited, id/source-tagged list must get it back unnarrowed, and
+  `EffectiveInvestigation.kind` includes `'manual'`, which the concrete
+  `HoleInvestigation`-typed `TrialMeasures.investigations` can't hold.
+- **Export restructured into two visibly separate sections (2026-09-04,
+  Elvis's feedback): "All videos combined" and "Per video."** A facility
+  either wants one cohort file or wants to hand a single collaborator just
+  their own video's numbers, and the original single set of buttons made it
+  unclear which a download actually contained. Per-video rows get their own
+  "Trial (CSV)" / "Investigations (CSV)" / "XLSX" buttons.
+- **The investigation/export table header is sticky within its own scroll
+  container (2026-09-04, Elvis's feedback: "make the column names hover as
+  you scroll").** Plain `position: sticky; top: 0` on `<th>`, verified in a
+  real browser that the header's screen position doesn't move as the table
+  scrolls beneath it.
+- **Nose-direction smoothing widened again (2026-09-04): `NOSE_DIRECTION_WINDOW`
+  5 → 10 frames, `MIN_INFORMATIVE_SPEED` 0.5 → 1.5 px/frame** (`src/core/tracking.ts`).
+  Elvis reported test50 still visibly jittery — rapid nose-end flips that,
+  since hole-investigation detection reads `frame.nose` (see the
+  2026-09-02 bullet above), were generating spurious proximity events and
+  noisy extra rows. The "not yet consequential for classification" claim in
+  the original version of this bullet was already stale by the time it was
+  written — it's worth a reminder to re-check claims like that when they get
+  cited again, not just trust them. Verified both ways: unit tests (widened
+  one existing reversal-sequence test so it's still long enough to flush the
+  wider window, added a new test asserting small back-and-forth jitter that
+  would have crossed the old 0.5px/frame threshold no longer flips the
+  nose), and a real re-track of test50 (investigation count 119 → 105,
+  search-strategy order-consistency 92% → 95%, label unchanged: Serial).
+  **Unresolved:** Elvis separately reported still seeing test50 classified
+  Random after this fix. Re-tracking test50 fresh, both before and after the
+  window change, consistently produced Serial in this session's own
+  testing — never Random. `holeOrderScore` and `directness` don't depend on
+  which hole is the target when the target is never reached (test50's case),
+  so a different target-hole choice doesn't obviously explain it either.
+  Leading hypothesis: **stale cached track data** — tracking results are
+  cached in IndexedDB, and investigations/strategy are recomputed live from
+  those *cached* tracks on every load, so this fix only changes what gets
+  written to a *fresh* re-track, not what a previously-tracked video already
+  has stored. Reported to Elvis directly rather than guessing further; not
+  confirmed fixed on his end as of this commit.
+- **"Richer visualizations" (2026-09-04), `src/ui/VisualizationsPanel.tsx`,
+  step 6.** Four views, all pure SVG/CSS (no charting library, matching
+  `TrackViewer`'s shared-viewBox overlay pattern): an occupancy heatmap
+  (`src/core/occupancyGrid.ts`, unit-tested — bins TRACKED centroids into an
+  NxN grid over the platform bounding box) using a single-hue sequential
+  scale (opacity, not hue, so it reads correctly under every form of
+  colorblindness) with the exact frame count in each cell's `<title>`; a
+  hole-visit timeline/raster, one row per hole, one bar per *visit* (reusing
+  `groupConsecutiveInvestigations` from the investigation-table work, not
+  one bar per raw row) distinguished occlusion-vs-proximity by stroke
+  weight rather than color alone; a cohort learning curve (primary/total
+  latency per tracked video, in load order) that marks a trial that never
+  reached the target or never escaped with an explicit "⚠ never" marker at
+  the top of the axis instead of silently omitting the point — the same
+  honesty requirement CLAUDE.md applies to tracking failures, applied here
+  to a chart; and a cohort comparison (errors before/across, and the
+  search-strategy label as text, never color alone) as plain CSS bars, not
+  SVG, since a real bar chart's labels are more robust as real DOM text than
+  as `<text>` elements sized to fit. Verified in a real browser against
+  synthetic-but-schema-real seeded IndexedDB data (two videos, one that
+  reaches the target and escapes, one that never does) rather than a full
+  CV re-track, given the token-conservation constraint on this session —
+  confirmed correct investigation counts, correct CSV row counts, the
+  never-reached marker firing exactly where expected, and the per-video
+  selector actually re-rendering the heatmap/raster on switch.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   the global investigation threshold, manual investigation edits, manual
   measure overrides, the global default platform diameter) — a refresh must
@@ -671,11 +750,19 @@ npm install
 npm run dev        # local dev server
 npm test            # vitest (unit)
 npm run test:e2e    # playwright (e2e smoke)
-npm run build       # production build
+npm run build       # production build (tsc -b && vite build)
+npm run typecheck   # tsc -b -- use this, not `tsc --noEmit -p .`
 npm run lint
 ```
 (Pin versions in package-lock.json — the brief requires a cold clone to run
 from the README alone.)
+
+**Typecheck gotcha (found 2026-09-04):** `tsc --noEmit -p .` against the root
+config silently passes on real type errors that `npm run typecheck` (`tsc -b`,
+building the referenced project configs) catches — caught two live errors
+this way in `useCohortData.ts`/`VisualizationsPanel.tsx` that `-p .` had
+reported clean moments earlier. Always verify with `npm run typecheck` or
+`npm run build`, not an ad hoc `tsc --noEmit -p .`.
 
 ## Domain facts worth keeping straight
 

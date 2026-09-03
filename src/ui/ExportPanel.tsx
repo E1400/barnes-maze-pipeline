@@ -3,94 +3,50 @@
  * detail to CSV/XLSX -- one tidy row per trial, one row per investigation,
  * parameters and the tool version embedded in both, per the brief.
  *
- * Recomputes from scratch on each load (tracks + corrections + ROI +
- * investigation edits/overrides), the same pipeline the review workspace
- * uses -- there's no separately cached "export" copy of a trial's numbers
- * to go stale.
+ * Combined (every video at once) and per-video export are kept as visibly
+ * separate sections (Elvis's feedback, 2026-09-04): a facility either wants
+ * one cohort file, or wants to hand a single collaborator just their own
+ * video's numbers, and conflating the two into one set of buttons made it
+ * unclear which a download actually contained.
  */
 
-import { useEffect, useState } from 'react'
-import { applyCorrections } from '../core/corrections.ts'
-import { DEFAULT_INVESTIGATION_PARAMS, detectInvestigations } from '../core/events.ts'
-import { applyInvestigationEdits } from '../core/investigationEdits.ts'
-import { applyMeasureOverrides } from '../core/measureOverrides.ts'
-import { computeTrialMeasuresFromInvestigations } from '../core/measures.ts'
-import { classifySearchStrategy } from '../core/searchStrategy.ts'
-import { loadCorrections } from '../state/correctionStore.ts'
-import { loadInvestigationEdits } from '../state/investigationEditsStore.ts'
-import { loadInvestigationParams } from '../state/investigationParamsStore.ts'
-import { loadMeasureOverrides } from '../state/measureOverridesStore.ts'
-import { loadRoi } from '../state/roiStore.ts'
-import { loadTracks, listTrackedVideoIds } from '../state/trackStore.ts'
-import { listVideos } from '../state/videoStore.ts'
 import { buildInvestigationRows, buildTrialRow, type InvestigationRow, type TrialRow } from '../io/exportRows.ts'
 import { downloadInvestigationsCsv, downloadTrialsCsv, downloadWorkbook } from '../io/sheets.ts'
+import { useCohortData } from './useCohortData.ts'
 
 interface Props {
   /** Changes whenever a tracking run finishes anywhere, prompting a rebuild. */
   readonly trackingRefreshToken: number
 }
 
+interface VideoExport {
+  readonly videoId: string
+  readonly videoName: string
+  readonly trial: TrialRow
+  readonly investigations: readonly InvestigationRow[]
+}
+
 function timestamp(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/** Filesystem-safe-ish stem for a per-video filename. */
+function fileStem(videoName: string): string {
+  return videoName.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '_')
+}
+
 export default function ExportPanel({ trackingRefreshToken }: Props) {
-  const [trials, setTrials] = useState<readonly TrialRow[]>([])
-  const [investigations, setInvestigations] = useState<readonly InvestigationRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const { videos: cohort, loading } = useCohortData(trackingRefreshToken)
 
-  useEffect(() => {
-    let cancelled = false
-    async function build() {
-      setLoading(true)
-      const [videos, trackedIds, globalParams] = await Promise.all([
-        listVideos(),
-        listTrackedVideoIds(),
-        loadInvestigationParams(),
-      ])
-      const params = globalParams ?? DEFAULT_INVESTIGATION_PARAMS
-      const trialRows: TrialRow[] = []
-      const investigationRows: InvestigationRow[] = []
+  const videos: VideoExport[] = cohort.map((v) => ({
+    videoId: v.video.id,
+    videoName: v.video.name,
+    trial: buildTrialRow(v.video.name, v.video.timebase, v.roi, v.measures, v.strategy, v.investigationParams),
+    investigations: buildInvestigationRows(v.video.name, v.video.timebase, v.investigations),
+  }))
 
-      for (const video of videos) {
-        if (!trackedIds.has(video.id)) continue
-        const [stored, storedRoi, corrections, edits, overrides] = await Promise.all([
-          loadTracks(video.id),
-          loadRoi(video.id),
-          loadCorrections(video.id),
-          loadInvestigationEdits(video.id),
-          loadMeasureOverrides(video.id),
-        ])
-        if (!stored || !storedRoi) continue
-
-        const effective = applyCorrections(stored.tracks, corrections)
-        const auto = detectInvestigations(effective, storedRoi.roi, params)
-        const effectiveInvestigations = applyInvestigationEdits(auto, edits, storedRoi.roi.targetHole)
-        const measures = applyMeasureOverrides(
-          computeTrialMeasuresFromInvestigations(effective, storedRoi.roi, video.timebase, effectiveInvestigations),
-          overrides,
-        )
-        const computedStrategy = classifySearchStrategy(effective, storedRoi.roi, effectiveInvestigations)
-        const strategy = overrides.searchStrategy
-          ? { label: overrides.searchStrategy, reasoning: computedStrategy?.reasoning ?? 'Manually set.' }
-          : computedStrategy
-
-        trialRows.push(buildTrialRow(video.name, video.timebase, storedRoi.roi, measures, strategy, params))
-        investigationRows.push(...buildInvestigationRows(video.name, video.timebase, effectiveInvestigations))
-      }
-
-      if (!cancelled) {
-        setTrials(trialRows)
-        setInvestigations(investigationRows)
-        setLoading(false)
-      }
-    }
-    void build()
-    return () => {
-      cancelled = true
-    }
-  }, [trackingRefreshToken])
+  const allTrials = videos.map((v) => v.trial)
+  const allInvestigations = videos.flatMap((v) => v.investigations)
 
   return (
     <section aria-labelledby="export-heading" className="export-panel">
@@ -105,35 +61,87 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
 
       {loading ? (
         <p className="hint">Gathering tracked videos…</p>
-      ) : trials.length === 0 ? (
+      ) : videos.length === 0 ? (
         <p className="hint">No tracked videos yet. Track at least one video above first.</p>
       ) : (
         <>
-          <p className="status">
-            {trials.length} tracked video{trials.length === 1 ? '' : 's'}, {investigations.length} hole
-            investigation{investigations.length === 1 ? '' : 's'} ready to export.
-          </p>
-          <div className="button-row">
-            <button
-              type="button"
-              onClick={() => downloadTrialsCsv(trials, `barnes-maze-trials-${timestamp()}.csv`)}
-            >
-              Download trials (CSV)
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                downloadInvestigationsCsv(investigations, `barnes-maze-investigations-${timestamp()}.csv`)
-              }
-            >
-              Download investigations (CSV)
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadWorkbook(trials, investigations, `barnes-maze-export-${timestamp()}.xlsx`)}
-            >
-              Download XLSX (both sheets)
-            </button>
+          <div className="export-group">
+            <h3>All videos combined</h3>
+            <p className="hint">
+              {videos.length} tracked video{videos.length === 1 ? '' : 's'}, {allInvestigations.length} hole
+              investigation{allInvestigations.length === 1 ? '' : 's'}.
+            </p>
+            <div className="button-row">
+              <button
+                type="button"
+                onClick={() => downloadTrialsCsv(allTrials, `barnes-maze-trials-${timestamp()}.csv`)}
+              >
+                Download trials (CSV)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadInvestigationsCsv(allInvestigations, `barnes-maze-investigations-${timestamp()}.csv`)
+                }
+              >
+                Download investigations (CSV)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadWorkbook(allTrials, allInvestigations, `barnes-maze-export-${timestamp()}.xlsx`)
+                }
+              >
+                Download XLSX (both sheets)
+              </button>
+            </div>
+          </div>
+
+          <div className="export-group">
+            <h3>Per video</h3>
+            <table className="export-table">
+              <thead>
+                <tr>
+                  <th scope="col">Video</th>
+                  <th scope="col">Investigations</th>
+                  <th scope="col">
+                    <span className="visually-hidden">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {videos.map((v) => (
+                  <tr key={v.videoId}>
+                    <td>{v.videoName}</td>
+                    <td>{v.investigations.length}</td>
+                    <td className="button-row">
+                      <button
+                        type="button"
+                        onClick={() => downloadTrialsCsv([v.trial], `${fileStem(v.videoName)}-trial.csv`)}
+                      >
+                        Trial (CSV)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadInvestigationsCsv(v.investigations, `${fileStem(v.videoName)}-investigations.csv`)
+                        }
+                      >
+                        Investigations (CSV)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadWorkbook([v.trial], v.investigations, `${fileStem(v.videoName)}.xlsx`)
+                        }
+                      >
+                        XLSX
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       )}

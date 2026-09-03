@@ -1,8 +1,6 @@
 /**
- * Application shell.
- *
- * Steps 1-4 are real. The rest are placeholders until their milestone lands
- * -- see docs/plan.md.
+ * Application shell. Steps 1-6 are real -- see docs/plan.md for the
+ * remaining, non-UI compliance/ship work (accessibility pass, docs, README).
  */
 
 import { useState } from 'react'
@@ -11,21 +9,10 @@ import RoiEditor from './RoiEditor.tsx'
 import TrackingPanel from './TrackingPanel.tsx'
 import ReviewWorkspace from './ReviewWorkspace.tsx'
 import ExportPanel from './ExportPanel.tsx'
+import VisualizationsPanel from './VisualizationsPanel.tsx'
 import { useTrackingJob } from './useTrackingJob.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { RoiDefinition } from '../core/roi.ts'
-
-type Milestone = {
-  readonly step: string
-  readonly status: string
-}
-
-const REMAINING: readonly Milestone[] = [
-  {
-    step: 'Richer visualizations (heatmaps, hole-visit rasters, learning curves, cohort comparisons)',
-    status: 'not built yet',
-  },
-]
 
 export default function App() {
   const [selected, setSelected] = useState<StoredVideoSummary | null>(null)
@@ -74,17 +61,7 @@ export default function App() {
 
       <ExportPanel trackingRefreshToken={trackingJob.completedCount} />
 
-      <section aria-labelledby="remaining-heading">
-        <h2 id="remaining-heading" className="step-heading">Remaining steps</h2>
-        <ol className="milestones" start={6}>
-          {REMAINING.map((milestone) => (
-            <li key={milestone.step}>
-              <span>{milestone.step}</span>
-              <span className="status-chip">{milestone.status}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
+      <VisualizationsPanel trackingRefreshToken={trackingJob.completedCount} />
     </main>
   )
 }
