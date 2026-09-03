@@ -262,10 +262,17 @@ export class Tracker {
    * at the target hole to IN_ESCAPE_BOX when it runs to the end of the clip
    * without the animal reappearing -- the animal escaped, not merely visited.
    * A hole visit that is later followed by TRACKED frames is never escape,
-   * regardless of which hole it was.
+   * regardless of which hole it was. Then covers the case the vanish-based
+   * state machine cannot: see `promoteTrailingShrinkIntoHoleRun`.
    */
   finalize(): FrameTrack[] {
-    if (this.roi.targetHole === null) return this.records
+    this.promoteTrailingOccludedRun()
+    this.promoteTrailingShrinkIntoHoleRun()
+    return this.records
+  }
+
+  private promoteTrailingOccludedRun(): void {
+    if (this.roi.targetHole === null) return
     let i = this.records.length - 1
     while (
       i >= 0 &&
@@ -275,10 +282,73 @@ export class Tracker {
       i--
     }
     const runStart = i + 1
-    if (runStart >= this.records.length) return this.records // no such trailing run
+    if (runStart >= this.records.length) return // no such trailing run
     for (let j = runStart; j < this.records.length; j++) {
       this.records[j] = { ...this.records[j]!, state: 'IN_ESCAPE_BOX' }
     }
-    return this.records
+  }
+
+  /**
+   * Catches an escape (or a deep hole visit) the vanish-based state machine
+   * structurally cannot: on real footage (measured directly on `test51` and
+   * `test53`'s own tracked output, not assumed), the classical detector's
+   * connected-components sometimes never drops the blob's area to zero as
+   * the animal enters a hole -- a residual sliver stays visible, so
+   * `detection.found` never goes false and the frame never reaches
+   * `trackVanished()` at all, however small or however close to a hole it
+   * gets. Measured on `test53`: the trailing ~165 frames sit within a few px
+   * of one hole (well inside `holeProximityRadiusFactor x holeRadius`) while
+   * area falls from ~456 (near the clip's own median of 460) to 139 and
+   * never recovers before the clip ends -- the same real event
+   * OCCLUDED_IN_HOLE already exists to represent, just without a full
+   * vanish to key off. Reuses the same conservative proximity+shrink gate as
+   * the vanish-based path, scored across the trailing near-hole run itself
+   * (its first frame's area vs. its last) rather than a fixed backward
+   * window, since there is no vanish frame here to anchor a window to.
+   * Promotes to IN_ESCAPE_BOX only at the target hole, mirroring
+   * `promoteTrailingOccludedRun`; any other hole promotes to
+   * OCCLUDED_IN_HOLE, the same "a real, deep hole visit, not an escape"
+   * meaning that state already carries everywhere else.
+   */
+  private promoteTrailingShrinkIntoHoleRun(): void {
+    if (this.records.length === 0) return
+    const lastFrame = this.records[this.records.length - 1]!
+    if (lastFrame.state !== 'TRACKED' || !lastFrame.centroid) return
+
+    const proximityRadius = this.roi.holeRadius * this.params.holeProximityRadiusFactor
+    const lastNear = nearestHole(lastFrame.centroid, this.roi)
+    if (lastNear === null || lastNear.distance > proximityRadius) return
+    const holeIndex = lastNear.index
+
+    // Walk back while frames stay TRACKED and near that *same* hole -- a run
+    // that visited a different hole partway through isn't one continuous visit.
+    let i = this.records.length - 1
+    while (i >= 0) {
+      const record = this.records[i]!
+      if (record.state !== 'TRACKED' || !record.centroid) break
+      const near = nearestHole(record.centroid, this.roi)
+      if (near === null || near.index !== holeIndex || near.distance > proximityRadius) break
+      i--
+    }
+    const runStart = i + 1
+    if (runStart >= this.records.length) return
+
+    const startArea = this.records[runStart]!.area
+    const endArea = this.records[this.records.length - 1]!.area
+    if (startArea <= 0) return
+    const shrunkEnough = (startArea - endArea) / startArea >= this.params.shrinkFractionRequired
+    if (!shrunkEnough) return
+
+    const nextState: TrackState = holeIndex === this.roi.targetHole ? 'IN_ESCAPE_BOX' : 'OCCLUDED_IN_HOLE'
+    for (let j = runStart; j < this.records.length; j++) {
+      this.records[j] = {
+        ...this.records[j]!,
+        state: nextState,
+        centroid: null,
+        nose: null,
+        area: 0,
+        holeIndex,
+      }
+    }
   }
 }

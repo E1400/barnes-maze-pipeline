@@ -34,7 +34,27 @@ const KIND_LABEL: Record<EffectiveInvestigation['kind'], string> = {
 }
 
 export default function InvestigationTable({ video, roi, review, inv }: Props) {
-  const { params, setParams, investigations, addInvestigation, updateInvestigation, deleteInvestigation } = inv
+  const {
+    params,
+    setParams,
+    investigations,
+    addInvestigation,
+    updateInvestigation,
+    deleteInvestigation,
+    canUndo,
+    undo,
+    regenerate,
+  } = inv
+
+  const onRegenerate = () => {
+    if (
+      window.confirm(
+        'Reset every manual investigation edit for this video back to the detector’s output? This does not re-run tracking, and cannot be undone.',
+      )
+    ) {
+      regenerate()
+    }
+  }
 
   const scale = roiPixelsPerCm(roi) // px per cm, null until step 1/2's diameter is set
   const fps = rationalToNumber(video.timebase.nominalFps)
@@ -77,7 +97,9 @@ export default function InvestigationTable({ video, roi, review, inv }: Props) {
           A hole counts as investigated when the animal&rsquo;s nose stays within the radius below,
           for at least the time below. Narrow both to catch only deliberate investigations; widen
           either if real visits are being missed. There is no single correct value in the
-          literature — set what matches your own criteria and the list updates live.
+          literature — set what matches your own criteria and the list updates live.{' '}
+          <strong>This is a global setting, shared by every video</strong> (see step 1) — a value
+          set here becomes the standard for every video after it, not just this one.
         </p>
         <div className="detection-criteria-fields">
           <label>
@@ -105,14 +127,32 @@ export default function InvestigationTable({ video, roi, review, inv }: Props) {
 
       <div className="investigation-table-header">
         <h3>Hole investigations ({investigations.length})</h3>
-        <button type="button" onClick={addAtCurrentFrame}>
-          + Add at current frame
-        </button>
+        <div className="button-row">
+          <button type="button" onClick={addAtCurrentFrame}>
+            + Add at current frame
+          </button>
+          <button
+            type="button"
+            disabled={!canUndo}
+            title={canUndo ? 'Undo the last add, edit, or delete' : 'No edit to undo'}
+            onClick={undo}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            title="Clear every manual edit for this video and recompute from the tracked data -- does not re-run tracking"
+            onClick={onRegenerate}
+          >
+            Regenerate stats
+          </button>
+        </div>
       </div>
 
       {investigations.length === 0 ? (
         <p className="hint">None detected at the current threshold.</p>
       ) : (
+        <div className="investigation-table-scroll">
         <table className="investigation-table">
           <thead>
             <tr>
@@ -200,6 +240,7 @@ export default function InvestigationTable({ video, roi, review, inv }: Props) {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )

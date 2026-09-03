@@ -12,6 +12,7 @@ import {
   STORE_CORRECTIONS,
   STORE_INVESTIGATION_EDITS,
   STORE_INVESTIGATION_PARAMS,
+  STORE_MEASURE_OVERRIDES,
   STORE_ROIS,
   STORE_SETTINGS,
   STORE_TRACKS,
@@ -64,6 +65,16 @@ const STEPS: Record<number, UpgradeStep> = {
   6: (db) => {
     if (!db.objectStoreNames.contains(STORE_INVESTIGATION_EDITS)) {
       db.createObjectStore(STORE_INVESTIGATION_EDITS, { keyPath: 'videoId' })
+    }
+  },
+  // v7 adds manual overrides on computed measures. Purely additive; the
+  // global investigation threshold lives in the existing STORE_SETTINGS
+  // store (a new key, not a new store) so it needs no migration step of its
+  // own either -- STORE_INVESTIGATION_PARAMS above is left in place, just
+  // unused, rather than migrated or dropped.
+  7: (db) => {
+    if (!db.objectStoreNames.contains(STORE_MEASURE_OVERRIDES)) {
+      db.createObjectStore(STORE_MEASURE_OVERRIDES, { keyPath: 'videoId' })
     }
   },
 }

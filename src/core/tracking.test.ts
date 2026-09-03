@@ -199,15 +199,15 @@ describe('Tracker: nose assignment', () => {
   })
 })
 
-describe('Tracker.finalize: escape box promotion', () => {
-  function shrinkInto(tracker: Tracker, hole: Point, startFrame: number): number {
-    let frame = startFrame
-    for (const area of [200, 170, 140, 110, 80]) {
-      tracker.push(frame++, found({ centroid: { x: hole.x - 3, y: hole.y }, area }))
-    }
-    return frame
+function shrinkInto(tracker: Tracker, hole: Point, startFrame: number): number {
+  let frame = startFrame
+  for (const area of [200, 170, 140, 110, 80]) {
+    tracker.push(frame++, found({ centroid: { x: hole.x - 3, y: hole.y }, area }))
   }
+  return frame
+}
 
+describe('Tracker.finalize: escape box promotion', () => {
   it('promotes a trailing hole-occlusion at the target hole to IN_ESCAPE_BOX', () => {
     const tracker = new Tracker(roi(0)) // target is hole 0
     const nextFrame = shrinkInto(tracker, HOLES[0]!, 0)
@@ -250,6 +250,92 @@ describe('Tracker.finalize: escape box promotion', () => {
     tracker.push(nextFrame, NOT_FOUND)
     const records = tracker.finalize()
     expect(records).toHaveLength(nextFrame + 1)
+  })
+})
+
+describe('Tracker.finalize: shrink-into-hole without a full vanish', () => {
+  // The classical detector's connected-components can keep a residual
+  // sliver of the blob visible as the animal enters a hole -- `found` never
+  // goes false, so the state machine never reaches trackVanished() at all,
+  // however small or however close to a hole the blob gets. Measured
+  // directly on test51/test53's own tracked output (see tracking.ts) before
+  // writing this: area falls to roughly a third of its start-of-run value
+  // while staying within holeRadius of a single hole, all the way to the
+  // last frame, and the state never once leaves TRACKED.
+  function stayTrackedShrinkingInto(tracker: Tracker, hole: Point, startFrame: number, areas: number[]): number {
+    let frame = startFrame
+    for (const area of areas) {
+      tracker.push(frame++, found({ centroid: { x: hole.x - 3, y: hole.y }, area }))
+    }
+    return frame
+  }
+
+  it('promotes a trailing TRACKED-but-shrunk run at the target hole to IN_ESCAPE_BOX', () => {
+    const tracker = new Tracker(roi(0))
+    tracker.push(0, found({ centroid: { x: 50, y: 50 }, area: 200 })) // normal size, far away
+    stayTrackedShrinkingInto(tracker, HOLES[0]!, 1, [190, 150, 110, 70])
+    const records = tracker.finalize()
+    expect(records.at(-1)).toMatchObject({ state: 'IN_ESCAPE_BOX', holeIndex: 0, centroid: null })
+    // Every frame of the near-hole run is promoted, not just the last.
+    expect(records.slice(1).every((r) => r.state === 'IN_ESCAPE_BOX')).toBe(true)
+  })
+
+  it('promotes the same pattern at a non-target hole to OCCLUDED_IN_HOLE, not escape', () => {
+    const tracker = new Tracker(roi(1)) // target is hole 1; the shrink happens at hole 0
+    tracker.push(0, found({ centroid: { x: 50, y: 50 }, area: 200 }))
+    stayTrackedShrinkingInto(tracker, HOLES[0]!, 1, [190, 150, 110, 70])
+    const records = tracker.finalize()
+    expect(records.at(-1)!.state).toBe('OCCLUDED_IN_HOLE')
+    expect(records.at(-1)!.holeIndex).toBe(0)
+  })
+
+  it('does not promote when the area never actually shrinks', () => {
+    const tracker = new Tracker(roi(0))
+    tracker.push(0, found({ centroid: { x: 50, y: 50 }, area: 200 }))
+    stayTrackedShrinkingInto(tracker, HOLES[0]!, 1, [195, 200, 198, 200]) // near a hole, but not shrinking
+    const records = tracker.finalize()
+    expect(records.at(-1)!.state).toBe('TRACKED')
+  })
+
+  it('does not promote when the last frame is not near any hole', () => {
+    const tracker = new Tracker(roi(0))
+    tracker.push(0, found({ centroid: { x: 50, y: 50 }, area: 200 }))
+    tracker.push(1, found({ centroid: { x: 400, y: 400 }, area: 60 })) // small, but nowhere near a hole
+    const records = tracker.finalize()
+    expect(records.at(-1)!.state).toBe('TRACKED')
+  })
+
+  it('does not extend the run across a hole change -- only the run at the final hole counts', () => {
+    const tracker = new Tracker(roi(0))
+    tracker.push(0, found({ centroid: { x: 50, y: 50 }, area: 200 }))
+    // Shrinks near hole 1 first, then moves to hole 0 and stays TRACKED there
+    // without shrinking further -- the hole-1 shrink shouldn't count toward
+    // a hole-0 run it was never part of.
+    stayTrackedShrinkingInto(tracker, HOLES[1]!, 1, [190, 150])
+    stayTrackedShrinkingInto(tracker, HOLES[0]!, 3, [150, 150])
+    const records = tracker.finalize()
+    expect(records.at(-1)!.state).toBe('TRACKED')
+  })
+
+  it('leaves an already-recovered trailing frame alone -- the last frame decides the target hole', () => {
+    const tracker = new Tracker(roi(0))
+    tracker.push(0, found({ centroid: { x: 50, y: 50 }, area: 200 }))
+    stayTrackedShrinkingInto(tracker, HOLES[0]!, 1, [190, 150, 110, 70])
+    tracker.push(5, found({ centroid: { x: 50, y: 50 }, area: 200 })) // reappears at full size, away from the hole
+    const records = tracker.finalize()
+    expect(records.at(-1)!.state).toBe('TRACKED')
+    expect(records.at(-2)!.state).toBe('TRACKED') // the earlier near-hole run is untouched too
+  })
+
+  it('does not run at all once the vanish-based promotion already handled the tail', () => {
+    const tracker = new Tracker(roi(0))
+    const nextFrame = shrinkInto(tracker, HOLES[0]!, 0)
+    tracker.push(nextFrame, NOT_FOUND)
+    const records = tracker.finalize()
+    // A genuine vanish is still handled by promoteTrailingOccludedRun alone;
+    // this just confirms the two paths don't conflict or double-apply.
+    expect(records.at(-1)!.state).toBe('IN_ESCAPE_BOX')
+    expect(records.filter((r) => r.state === 'IN_ESCAPE_BOX')).toHaveLength(1)
   })
 })
 

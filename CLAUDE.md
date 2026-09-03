@@ -348,24 +348,46 @@ just change code silently, when a decision changes.
   investigation" button needs. Gating ("define the maze first" / "track the
   video first") is asserted once at the workspace level, not duplicated per
   half.
-- **Review workspace layout, revised (2026-09-03): stats under the viewer,
-  the full table beside it, no inner scrollbar.** The investigation logic
-  (threshold params + edits + the computed list) was pulled out of a single
-  `InvestigationPanel` into its own hook, `useInvestigations`
-  (`src/ui/useInvestigations.ts`), so it can be called once and shared by
-  two separately *positioned* components: `TrialStats` (the computed numbers,
-  stacked under the viewer — you look at the animal, then see what it
-  produced) and `InvestigationTable` (the full row-by-row list, beside the
-  viewer, not the viewer's own stats). The table is no longer capped at a
-  scrolling sub-panel height — a reviewer comparing a row against the video
-  shouldn't lose rows to an inner scrollbar (Elvis's feedback); the table
-  takes whatever height it needs and the page scrolls, same as every other
-  long list in the app. Both this section and the ROI editor (step 2, same
-  complaint, same fix) now break out of the app's normal 60rem reading width
-  to `min(90rem, 100vw - 2.5rem)` via the `left: 50%; transform:
+- **Review workspace layout: stats under the viewer, the full table beside
+  it.** The investigation logic (threshold params + edits + the computed
+  list) was pulled out of a single `InvestigationPanel` into its own hook,
+  `useInvestigations` (`src/ui/useInvestigations.ts`), so it can be called
+  once and shared by two separately *positioned* components: `TrialStats`
+  (the computed numbers, stacked under the viewer — you look at the animal,
+  then see what it produced) and `InvestigationTable` (the full row-by-row
+  list, beside the viewer). Both this section and the ROI editor (step 2,
+  same width complaint) break out of the app's normal 60rem reading width to
+  `min(90rem, 100vw - 5rem)` via the `left: 50%; transform:
   translateX(-50%)` full-bleed centering technique — these are the two
   screens meant to be lived in while working a trial, not read top to
   bottom once.
+- **The investigation table caps at roughly one viewport and scrolls
+  internally, on a long clip's list (revised twice, 2026-09-03).** First
+  built with no cap at all (the table just ran on as long as it needed,
+  page scrolling past it). On `test50` (5539 frames, 119 investigations)
+  that meant scrolling well past the video to see the rest of the rows, so
+  Elvis asked for a capped, internally-scrolling box again — with the
+  caveat that the earlier version of that same idea (mistake-adjacent, not
+  numbered since it never shipped to `main`) had been removed for being too
+  restrictive, so this one needed to actually work. First attempt used
+  `align-items: stretch` on `.review-grid` plus `flex: 1; min-height: 0;
+  overflow-y: auto` on the table's wrapper, on the theory that the
+  investigation panel would stretch to match the video+stats column's
+  height and the inner wrapper would cap to that. It didn't: a CSS grid row
+  with no explicit height auto-sizes to its *tallest* item, and `overflow`
+  doesn't shrink an item's contribution to that auto-sizing (`min-height: 0`
+  only stops a flex/grid item from refusing to shrink *below* an
+  already-constrained parent — it doesn't manufacture a constraint that
+  isn't there) — so a long table just dragged the whole row, and the video
+  column with it, up to match its own full content height, and nothing
+  ever actually scrolled. Caught by measuring `scrollHeight` vs.
+  `clientHeight` directly in a real browser against `test50` rather than
+  trusting the CSS reads correctly (`scrollHeight === clientHeight`, i.e.
+  provably not scrolling, on the first attempt). Fixed with an explicit
+  `max-height: calc(100vh - 6rem)` on `.investigation-panel` — a real,
+  independent constraint a grid item's stretch has to respect — verified
+  the same way afterward (`scrollHeight` 4123px against a capped
+  `clientHeight` of 745px on `test50`, confirmed genuinely scrollable).
 - **Stat cards grouped with one description per group, not per card
   (2026-09-03).** "Primary latency" and "Total latency" used to each stand
   alone with no explanation; now "Latency" is a group heading with one
@@ -382,9 +404,18 @@ just change code silently, when a decision changes.
   the last two are exactly what step 4's investigation table and latency
   cards already cover, with real context (which hole, when), so showing bare
   frame counts here again read as redundant, unexplained clutter (Elvis's
-  feedback). Now a single status line: `"{tracked} of {total} frames
-  tracked{, N lost (%)}"` — tracking QA only, LOST being the one thing this
-  step is actually responsible for confirming honestly.
+  feedback). Now a single status line, phrased `"{total} frames processed:
+  {tracked} tracked{, N with the mouse not in view (%)}"` — leads with the
+  total so a completed run never reads as partial. That phrasing was chosen
+  deliberately, not the obvious `"{tracked} of {total} frames tracked"`:
+  once the escape-detection refinement below started reclassifying a real
+  trailing run of frames away from TRACKED, a completed 741-frame run could
+  legitimately show "541 of 741" for its tracked count, which reads exactly
+  like an unfinished run even though every frame was processed — caught by
+  misreading my own output while verifying that refinement (see
+  AI_NOTES.md). Tracking QA only; LOST ("mouse not in view" in the UI, see
+  below) is the one thing this step is actually responsible for confirming
+  honestly.
 - **Manual investigation editing (2026-09-03), `src/core/investigationEdits.ts`:**
   add/delete/edit for the hole-investigation list, an overlay on the
   detector's output exactly like `corrections.ts` is for positions — the
@@ -414,6 +445,23 @@ just change code silently, when a decision changes.
   frames" are correct but not something a reviewer can reason about without
   doing the arithmetic themselves; a radius in cm and a duration in seconds
   are the units the literature and the researcher actually think in.
+- **Detection criteria are a global setting, not per-video (revised
+  2026-09-03).** A facility scores every video in a study against the same
+  investigation threshold — re-choosing it per clip would make trials
+  incomparable, and re-typing it would just be the per-video click cost the
+  brief asks to avoid, same reasoning as the platform-diameter default.
+  `investigationParamsStore.ts` now reads/writes a single `STORE_SETTINGS`
+  key (`globalInvestigationParams`) instead of a per-video record; the old
+  per-video store (`STORE_INVESTIGATION_PARAMS`) is left in the schema,
+  unused, rather than migrated — no destructive migration needed for a value
+  the UI simply stops reading. Editable from two places that both write the
+  *same* global value: a live, real-unit-converted control in step 4 (once a
+  video is tracked, so the conversion has a real hole radius and calibration
+  to work from) and a summary readout next to the loaded-videos table in
+  step 1, so the current standard is visible before opening any one video.
+  Step 2 (defining the maze) also states plainly that this is a global
+  setting, so a reviewer isn't surprised later that adjusting it for one
+  video changed every other video's numbers too.
 - **Platform diameter has a global default (2026-09-03), entered prominently
   in step 1** (`VideoLoader.tsx`, `STORE_SETTINGS` key `defaultPlatformDiameterCm`)
   and used to seed every newly created ROI's own diameter field — a facility
@@ -440,9 +488,108 @@ just change code silently, when a decision changes.
   one property wrong once (mistake 14). All hole circles got thinner
   strokes at the same time, same reasoning: legible at a glance, never
   thick enough to cover the animal underneath.
+- **Escape/deep-hole-visit detection refined to catch a residual-blob case
+  the state machine structurally could not (2026-09-03),
+  `Tracker.finalize()`.** Measured directly on `test51` and `test53`'s own
+  tracked output before writing anything (not assumed): the classical
+  detector's connected-components sometimes never drops the blob's area to
+  zero as the animal enters a hole — a residual sliver stays visible, so
+  `detection.found` never goes false and the frame never reaches
+  `trackVanished()` at all, however small or however close to a hole it
+  gets. On `test53` specifically, the trailing ~165 frames sit within a few
+  px of one hole while area falls from ~456 (near the clip's own median of
+  460) to 139 and never recovers before the clip ends, `state` staying
+  `TRACKED` throughout — the same real event `OCCLUDED_IN_HOLE` already
+  exists to represent, just without a full vanish to key off. A new
+  finalize step, `promoteTrailingShrinkIntoHoleRun`, walks backward from the
+  last frame while it stays `TRACKED` and within `holeProximityRadiusFactor
+  x holeRadius` of one consistent hole, and — reusing the existing
+  `shrinkFractionRequired` gate, scored across that run's own first vs. last
+  frame rather than a fixed backward window, since there's no vanish frame
+  to anchor one to — promotes the whole run to `IN_ESCAPE_BOX` at the target
+  hole or `OCCLUDED_IN_HOLE` anywhere else, same conservative
+  proximity-and-shrink policy as the vanish-based path. Verified this
+  doesn't false-positive on `test50` (whose tail genuinely never approaches
+  a hole — area flat, distance ~20px against a ~17px threshold) before
+  calling it done. This is why `TrackingPanel`'s tracked-frame count can now
+  legitimately be less than the clip's total even on a fully-processed run
+  — see the wording note above.
+- **Search-strategy classification (2026-09-03), `src/core/searchStrategy.ts`:**
+  rule-based spatial / serial / random labelling, the third standard Barnes-
+  maze readout alongside latency and errors (see "Domain facts"). Classifies
+  up to a *cutoff frame*: the moment the target was first reached, or —
+  when it never was — the last tracked frame of the clip, so a trial that
+  never finds the target still gets scored on the search it actually
+  performed (Elvis's explicit call) rather than being left unclassified.
+  Three signals feed the decision, all derived from data already computed
+  elsewhere (no new tracking needed): path directness (straight-line
+  distance from the start position to the target/endpoint, over actual path
+  length), hole-visit angular order (do consecutive investigated holes' ring
+  positions keep turning the same direction — the serial signature), and
+  centre crossings (the literature's classic random-search signature).
+  `directnessThreshold` / `maxErrorsForSpatial` / `serialOrderThreshold` are
+  this project's own first-cut heuristic, stated as such — not values taken
+  from a specific paper, and deliberately ordinary parameters rather than
+  buried constants for exactly that reason: there is no single published
+  cutoff to defer to here any more than there is for hole-investigation
+  radius. The label always ships with its reasoning as a sentence citing the
+  actual numbers behind it (e.g. "Investigated 5 holes in ring order (86% of
+  transitions continuing one direction) before the target"), and lives as
+  its own `stat-group` alongside the other trial measures rather than a
+  separate panel with its own jump/scroll machinery — Elvis's call: its
+  classification already considers the whole movement path, so unlike a
+  hole-investigation row it has no one frame to jump to.
+- **Every trial-stat card is manually overridable through one shared "Edit"
+  toggle, not a per-card control (2026-09-03),
+  `src/core/measureOverrides.ts` + `useMeasureOverrides.ts`.** Same
+  overlay-not-mutation shape as corrections and investigation edits: an
+  override is stored per measure key (`primaryLatencySeconds`,
+  `pathLengthCm`, `searchStrategy`, …) and displayed in place of the
+  computed value, never altering the computation itself, so reverting a
+  field just deletes its override and the original computed number is still
+  there. One "Edit" button switches every card in `TrialStats` into an
+  editable input at once (a `<select>` for the search-strategy label,
+  numeric inputs for everything else) rather than each card carrying its
+  own edit affordance — Elvis's explicit call, and it also keeps the stat
+  grid visually calm outside of edit mode. An overridden card gets the same
+  dashed-border treatment as a manually corrected track point, plus a
+  "(manual)" tag, so auto-vs-human-touched stays visually obvious here too.
+- **Undo and a full reset for investigation edits (2026-09-03),
+  `useInvestigations.ts`.** A deleted row used to be gone for good — Elvis's
+  feedback. `applyEdit` now pushes the pre-edit state onto an in-memory
+  history (capped at 20) before every add/update/delete, so "Undo" always
+  has something to step back to regardless of which kind of edit it was;
+  history is session-scoped, not persisted, matching ordinary undo
+  semantics elsewhere (it doesn't survive a reload, same as most editors'
+  undo stacks). "Regenerate stats" is the harder reset: confirmed
+  (`window.confirm`, this is destructive), it clears every manual
+  investigation edit for the video back to the detector's raw output
+  without re-running tracking — for when a reviewer wants to start a
+  video's manual review over rather than undo one step at a time.
+- **"LOST" renamed to "Mouse not in view" everywhere in the UI, not in the
+  code (2026-09-03).** "Tracking lost" reads as a tool failure; on real
+  footage most of it is simply the animal not yet placed on the platform at
+  the start of a clip, which is normal, not an error (Elvis's feedback). The
+  `TrackState` value itself is still `'LOST'` throughout `core/` — renaming
+  a type used across the tracker, measures, and event detection for a
+  display-string complaint would be real, unjustified churn — only
+  `STATE_LABEL` (`TrackViewer.tsx`) and the tracking-panel status wording
+  changed. A genuine tracking failure mid-trial still looks identical to a
+  not-yet-started clip here, and is still fixable the same way: scrub to it
+  and correct it by hand once state-relabeling ships (still deferred, see
+  the correction-viewer scope note above).
+- **Wider margins, and a visible bar per step heading (2026-09-03).** The
+  page felt cramped against the browser edge (`#root` padding 1.25rem →
+  2.5rem, and the step-4/step-2 width breakouts widened to match), and the
+  page read as one long scroll rather than a sequence of distinct steps —
+  every `<h2>` step heading now gets a `.step-heading` bar (accent left
+  border, `--surface` background) instead of just being a bigger font.
+  Applied to all four real steps plus the "Remaining steps" placeholder, for
+  one consistent rhythm down the page.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
-  parameters, per-video investigation threshold, manual investigation edits,
-  the global default platform diameter) — a refresh must never lose
+  the global investigation threshold, manual investigation edits, manual
+  measure overrides, the global default platform diameter) — a refresh must
+  never lose
   annotation work.
 - **Export:** SheetJS for CSV/XLSX.
 - **Testing:** Vitest for pure logic (timebase math, ROI geometry, event

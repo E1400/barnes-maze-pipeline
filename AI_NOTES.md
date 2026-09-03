@@ -251,7 +251,30 @@ was wrong about it, what the tell was, how you caught it.
     separate request to make the target more visually obvious -- the same
     bug was suppressing both correctness and visibility at once).
 
-15. <!-- next real one goes here -->
+15. **Escape detection structurally could never fire, on real footage where
+    the animal visibly enters a hole.** Elvis reported that `test51` and
+    `test53` both clearly show the mouse entering the target hole, but
+    "total latency" (time to escape) stayed unmeasured ("--") for both. Root
+    cause, confirmed by pulling the real per-frame track out of IndexedDB
+    rather than guessing: the classical background-subtraction detector's
+    connected-components sometimes never drops the blob's area all the way
+    to zero as the animal enters a hole -- a residual sliver stays visible,
+    so `detection.found` never goes `false`, and a frame that never goes
+    "not found" can never reach `trackVanished()`, the *only* place the
+    tracker's state machine ever considers `OCCLUDED_IN_HOLE`/escape at all.
+    On `test53` the trailing ~165 frames sit within a few px of one hole
+    while area falls from ~456 to 139 (the clip's median tracked area is
+    460) and never recovers before the clip ends -- `state` stays `TRACKED`
+    the entire time, a real, visually-obvious escape the state machine was
+    structurally blind to. Fixed with a second `finalize()` pass,
+    `promoteTrailingShrinkIntoHoleRun`, that reuses the existing
+    proximity-and-shrink gate but scores it across the trailing near-hole
+    run itself rather than a fixed window before a vanish, since here
+    there's no vanish frame to anchor one to. Verified on all three real
+    clips before and after (not just the two Elvis named): `test51` and
+    `test53` now report real escape times, `test50` -- which Elvis confirmed
+    genuinely never reaches its target -- correctly still doesn't, its tail
+    sitting outside the proximity radius with a flat, non-shrinking area.
 
 ## Where the human overrode the model
 
@@ -575,3 +598,84 @@ tracked.") -- merged into the one status line rather than two. Screenshotted
 the finished step 3/4 layout at 1600px width before calling this done,
 since a redundant second line is exactly the kind of thing a component-only
 diff or unit test would never catch.
+
+**Escape-detection refinement, search-strategy classification, editable
+measures, and a round of workspace polish, all from one message (this
+branch).** The highest-stakes item was the tracking fix: Elvis reported that
+`test51` and `test53` visibly show the mouse entering a hole on video, but
+total latency stayed "--" in both, and pointed specifically at `test53`
+"shrinking into the hole" before the clip ends. Rather than guess at a fix,
+pulled the real per-frame `FrameTrack` array straight out of IndexedDB after
+tracking each clip (`indexedDB.open` + `getAll` in a `page.evaluate`, same
+method as the mistake-13 trace) and looked at the raw numbers: on `test53`,
+centroid-to-nearest-hole distance falls from 19.5px to 5.7px while area
+falls from 456 (near the clip's own 460 median) to 139, over the trailing
+~165 frames, `state` staying `TRACKED` throughout -- confirmed the
+hypothesis (the classical detector's connected-components never actually
+drops the blob's area to zero, so the vanish-based state machine never
+engages) with real numbers before writing a line of the fix. Checked
+`test51` the same way (same pattern, a ~50% area drop) and `test50` (the
+one Elvis said correctly stays unescaped) specifically for a false
+positive -- its tail sits at ~20px from the nearest hole against a ~17px
+threshold, area flat, no shrink -- confirming the new logic wouldn't
+over-fire before it ever ran against real data. Landed the fix
+(`Tracker.finalize`'s new `promoteTrailingShrinkIntoHoleRun`), added 7 new
+unit tests alongside the existing 20, then re-verified against the real
+built app: `test51` and `test53` now show real "To escape" times, `test50`
+still correctly shows "--".
+
+That verification pass produced its own false alarm, worth recording
+because it's a different *kind* of false alarm than the two earlier ones
+this session. A screenshot showed "541 of 741 frames tracked" partway
+through, which reads exactly like an interrupted run. Traced the actual
+status text second-by-second through a full run (`section.tracking
+.status` polled once a second) and watched it correctly reach "Tracking:
+frame 737 of 741" and then land on "541 of 741 frames tracked." -- so the
+run *did* complete; "541" is the count of frames still in `TRACKED` state,
+correctly reduced by the ~200 frames the new escape logic had just
+reclassified to `IN_ESCAPE_BOX`. Confirmed by pulling the saved array
+directly: length 741 (not truncated), state counts `{TRACKED: 541,
+OCCLUDED_IN_HOLE: 200}` on a run with no target hole set (so the trailing
+run correctly fell back to OCCLUDED_IN_HOLE rather than escape). Not a
+product bug -- but a real ambiguity in wording that I, with full knowledge
+of the code, still misread on first glance, so reworded the status line to
+lead with the total frames *processed* rather than the tracked count, so a
+completed run can never look partial again. Distinct from the HMR race and
+the unscrolled-drag alarm earlier this session: those were both artifacts
+of my own verification method; this one was a real (if minor) product
+clarity issue that the verification process surfaced correctly.
+
+Search-strategy classification, the editable-measure-override system, and
+the undo/regenerate/global-criteria/terminology/layout changes were built
+and then verified together against the real, running app (not just unit
+tests) before considering any of it done: confirmed the classifier produces
+a real, inspectable label and reasoning against `test51`'s actual track
+("Random -- 11% path efficiency, 14 holes investigated with no consistent
+order..."), confirmed an override round-trips (set a value, see the
+"(manual)" tag, revert, see the computed value return), and confirmed
+undo/regenerate change the investigation count exactly as expected at each
+step. Full e2e suite re-run against the rebuilt production bundle after
+every structural change (the review-workspace layout change added a second
+`<h3>` to the section, which broke three tests' `section.locator('h3')`
+selectors -- caught by running the whole suite, not just the new
+assertions, same standing practice as the correction.spec.ts leftover
+earlier this session).
+
+The investigation table's scroll cap (re-requested after last session's
+"no scroll" version proved too restrictive on a long clip) is the one item
+here worth its own note: the first CSS attempt (`align-items: stretch` +
+`flex: 1; min-height: 0; overflow-y: auto`) *looked* right and matched the
+usual advice for this exact problem, but didn't actually work -- a grid row
+with no explicit height auto-sizes to its tallest item regardless of an
+inner `overflow`, so a long table just dragged the whole row, and the video
+column with it, up to its own full content height. Did not just eyeball it
+and move on: measured `scrollHeight` vs. `clientHeight` directly against
+`test50` (119 rows) in a real browser, found them exactly equal --
+provably not scrolling despite the CSS reading as if it should. Fixed with
+an explicit `max-height: calc(100vh - 6rem)`, a real constraint a stretched
+grid item actually has to respect, and re-measured the same way to confirm
+(`scrollHeight` 4123px against a capped `clientHeight` of 745px). A CSS fix
+that "looks right" and matches conventional advice still isn't verified
+until it's measured -- same standing rule this file already applies to
+application logic, worth restating for CSS specifically since it's easy to
+treat as lower-stakes.

@@ -14,12 +14,14 @@ import { deleteVideo, listVideos, putVideo } from '../state/videoStore.ts'
 import { deleteRoi, listDefinedVideoIds } from '../state/roiStore.ts'
 import { deleteTracks, listTrackedVideoIds } from '../state/trackStore.ts'
 import { deleteCorrections } from '../state/correctionStore.ts'
-import { deleteInvestigationParams } from '../state/investigationParamsStore.ts'
 import { deleteInvestigationEdits } from '../state/investigationEditsStore.ts'
+import { deleteMeasureOverrides } from '../state/measureOverridesStore.ts'
 import { loadDefaultPlatformDiameterCm, saveDefaultPlatformDiameterCm } from '../state/roiStore.ts'
+import { loadInvestigationParams } from '../state/investigationParamsStore.ts'
 import { DB_VERSION, videoId } from '../state/schema.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { PipelineProgress } from '../core/cv/pipeline.ts'
+import { DEFAULT_INVESTIGATION_PARAMS, type InvestigationParams } from '../core/events.ts'
 
 function isVideoFile(file: File): boolean {
   // Browsers occasionally report an empty type for a known extension, so fall
@@ -64,7 +66,12 @@ export default function VideoLoader({
   const [definedVideoIds, setDefinedVideoIds] = useState<Set<string>>(new Set())
   const [trackedVideoIds, setTrackedVideoIds] = useState<Set<string>>(new Set())
   const [defaultDiameterCm, setDefaultDiameterCm] = useState<number | null>(null)
+  const [investigationParams, setInvestigationParams] = useState<InvestigationParams | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    void loadInvestigationParams().then(setInvestigationParams)
+  }, [trackingRefreshToken])
 
   useEffect(() => {
     void loadDefaultPlatformDiameterCm().then(setDefaultDiameterCm)
@@ -170,15 +177,15 @@ export default function VideoLoader({
     await deleteRoi(video.id)
     await deleteTracks(video.id)
     await deleteCorrections(video.id)
-    await deleteInvestigationParams(video.id)
     await deleteInvestigationEdits(video.id)
+    await deleteMeasureOverrides(video.id)
     setVideos(await listVideos())
     setStatus(`Removed ${video.name}.`)
   }, [])
 
   return (
     <section aria-labelledby="video-loader-heading" className="loader">
-      <h2 id="video-loader-heading">1. Load videos</h2>
+      <h2 id="video-loader-heading" className="step-heading">1. Load videos</h2>
 
       {/* The drop zone is a convenience layered over a real file input: the
           input is the accessible control, focusable and labeled, and works
@@ -234,6 +241,22 @@ export default function VideoLoader({
           Real-world measurements depend on this. Set it once here — every new maze layout
           starts from it, and you can still fine-tune it per video in step 2.
         </p>
+      </div>
+
+      <div className="calibration-callout">
+        <span className="calibration-callout-label">Hole-investigation detection</span>
+        {(() => {
+          const params = investigationParams ?? DEFAULT_INVESTIGATION_PARAMS
+          return (
+            <p className="hint">
+              Radius factor {params.proximityRadiusFactor.toFixed(2)}× hole radius, minimum{' '}
+              {params.minFrames} frame{params.minFrames === 1 ? '' : 's'}. This is a{' '}
+              <strong>global</strong> setting shared by every video, not chosen per clip — adjust
+              it in step 4 (in real units, once a video is tracked) and it becomes the standard
+              for every video after that.
+            </p>
+          )
+        })()}
       </div>
 
       {/* Announced to screen readers without stealing focus. */}

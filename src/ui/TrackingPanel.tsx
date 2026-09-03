@@ -46,7 +46,7 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
   if (!roi || !completeness.hasRing) {
     return (
       <section aria-labelledby="tracking-heading" className="tracking">
-        <h2 id="tracking-heading">3. Track the animal</h2>
+        <h2 id="tracking-heading" className="step-heading">3. Track the animal</h2>
         <p className="hint">Define the maze layout above first.</p>
       </section>
     )
@@ -60,10 +60,15 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
   for (const t of tracks ?? []) counts[t.state] = (counts[t.state] ?? 0) + 1
   const total = tracks?.length ?? 0
 
+  // Leads with the total processed, not "{tracked} of {total}" -- read in
+  // isolation, the latter phrasing looks like an incomplete run even when
+  // every frame was processed and simply ended up in a state other than
+  // TRACKED (occluded in a hole, escaped). Caught by misreading it myself
+  // while verifying the escape-detection refinement -- see AI_NOTES.md.
   const doneText = tracks
-    ? `${counts.TRACKED ?? 0} of ${total} frames tracked${
+    ? `${total} frames processed: ${counts.TRACKED ?? 0} tracked${
         (counts.LOST ?? 0) > 0
-          ? `, ${counts.LOST} lost (${(((counts.LOST ?? 0) / total) * 100).toFixed(1)}%)`
+          ? `, ${counts.LOST} with the mouse not in view (${(((counts.LOST ?? 0) / total) * 100).toFixed(1)}%)`
           : ''
       }.`
     : 'Not tracked yet.'
@@ -80,7 +85,7 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
 
   return (
     <section aria-labelledby="tracking-heading" className="tracking">
-      <h2 id="tracking-heading">3. Track the animal — {video.name}</h2>
+      <h2 id="tracking-heading" className="step-heading">3. Track the animal — {video.name}</h2>
 
       {!completeness.hasTarget && (
         <p className="hint">Mark an escape target above to detect the escape separately from other holes.</p>
@@ -92,7 +97,7 @@ export default function TrackingPanel({ video, roi, trackingJob }: Props) {
         aria-live="polite"
         title={
           tracks
-            ? "Frames the tracker lost the animal entirely -- never guessed at, always counted honestly. Whether a lost stretch matters, and what happened during it (a hole visit, an escape, or just a bad frame), is what the panel below works out."
+            ? 'Frames where no animal was visible on the platform -- never guessed at, always counted honestly. Most of this is simply the mouse not yet placed at the start of the clip. A genuine tracking gap inside a trial looks the same and can be fixed with a manual correction below.'
             : undefined
         }
       >

@@ -52,7 +52,7 @@ test('runs entirely client-side, reports progress, and produces a plausible trac
   )
 
   await expect(page.locator('section.tracking .status')).toContainText(
-    '741 frames tracked',
+    '741 frames processed',
     { timeout: 120_000 },
   )
   // "Nothing is uploaded" is stated once at the top of the page, not
@@ -60,7 +60,7 @@ test('runs entirely client-side, reports progress, and produces a plausible trac
 
   // Per-state hole-visit/escape counts live in the investigation panel
   // (step 4), not duplicated here -- this line is just tracking QA.
-  await expect(page.locator('section.tracking .status')).toContainText('741 of 741 frames tracked')
+  await expect(page.locator('section.tracking .status')).toContainText(/741 frames processed: \d+ tracked/)
   // The trajectory plot itself (path never drawn through a gap, click to
   // jump to a frame) lives in the review workspace now -- see review.spec.ts.
 })
@@ -69,7 +69,7 @@ test('tracking results survive a reload without re-running', async ({ page }) =>
   test.setTimeout(150_000)
   await openWithMaze(page)
   await page.getByRole('button', { name: 'Track this video' }).click()
-  await expect(page.locator('section.tracking .status')).toContainText('741 frames tracked', {
+  await expect(page.locator('section.tracking .status')).toContainText('741 frames processed', {
     timeout: 120_000,
   })
 
@@ -79,7 +79,7 @@ test('tracking results survive a reload without re-running', async ({ page }) =>
 
   // No re-run needed: the saved result should appear promptly, not after
   // another multi-second tracking pass.
-  await expect(page.locator('section.tracking .status')).toContainText('741 frames tracked', {
+  await expect(page.locator('section.tracking .status')).toContainText('741 frames processed', {
     timeout: 5_000,
   })
   await expect(page.getByRole('button', { name: 'Re-track this video' })).toBeVisible()

@@ -39,7 +39,7 @@ body {
 #root {
   max-width: 60rem;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 2rem 2.5rem 4rem;
 }
 
 h1 {
@@ -50,6 +50,17 @@ h1 {
 h2 {
   font-size: 1.15rem;
   margin: 2rem 0 0.75rem;
+}
+
+/* A visible bar per step, not just a bigger font -- makes the page read as
+   a sequence of distinct steps at a glance, not one long scroll (Elvis's
+   feedback, 2026-09-03). */
+.step-heading {
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.25rem;
+  padding: 0.6rem 1rem;
+  margin: 2.5rem 0 1rem;
 }
 
 a {
@@ -121,9 +132,14 @@ a {
   background: var(--surface);
 }
 
-.calibration-callout label {
+.calibration-callout label,
+.calibration-callout-label {
   font-weight: 700;
   margin-right: 0.75rem;
+}
+
+.calibration-callout + .calibration-callout {
+  margin-top: 0.75rem;
 }
 
 .calibration-callout input {
@@ -269,7 +285,7 @@ a {
   /* Same breakout as the review workspace -- both are edit-heavy screens
      that want real width, not the narrower reading margin the rest of the
      app uses (Elvis's feedback, 2026-09-03). */
-  width: min(90rem, calc(100vw - 2.5rem));
+  width: min(90rem, calc(100vw - 5rem));
   position: relative;
   left: 50%;
   transform: translateX(-50%);
@@ -676,7 +692,7 @@ a {
      screen meant to be lived in while reviewing a trial, and a full table
      plus the viewer needs real width, not the margins a form-like page
      wants everywhere else (Elvis's feedback, 2026-09-03). */
-  width: min(90rem, calc(100vw - 2.5rem));
+  width: min(90rem, calc(100vw - 5rem));
   position: relative;
   left: 50%;
   transform: translateX(-50%);
@@ -686,12 +702,29 @@ a {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(26rem, 1.1fr);
   gap: 1.5rem;
-  align-items: start;
+  /* Stretch (the default), not `start` -- the investigation table's own
+     scroll area (see .investigation-table-scroll) sizes itself to match
+     this column's height, so a long table scrolls internally instead of
+     running on past the video+stats column (Elvis's feedback,
+     2026-09-03). */
 }
 
 @media (max-width: 64rem) {
   .review-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* A capped inner scroll only makes sense when the two columns sit side by
+     side; stacked on narrow screens, the table should just run its full
+     length like the rest of the page. */
+  .investigation-panel {
+    max-height: none;
+  }
+
+  .investigation-table-scroll {
+    flex: none;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -775,6 +808,18 @@ a {
   gap: 0.875rem;
 }
 
+.stat-groups-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.stat-groups-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
 .stat-group h4 {
   margin: 0;
   font-size: 0.8125rem;
@@ -819,6 +864,39 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+/* A manually entered value, not a computed one -- dashed, not just a colour,
+   same convention as a corrected track point (see .correction-point--manual). */
+.stat-card--overridden {
+  border-style: dashed;
+  border-color: #d1a916;
+}
+
+.stat-overridden-tag {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+.stat-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.stat-edit input,
+.stat-edit select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.9375rem;
+}
+
+.stat-edit button {
+  flex-shrink: 0;
+  padding: 0.1rem 0.375rem;
+}
+
 /* --- Investigation table (beside the viewer) --- */
 
 .investigation-panel {
@@ -826,6 +904,27 @@ a {
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 0.875rem;
+  /* Capped to (roughly) one viewport, not left to grow with the investigation
+     count -- a long list scrolls in its own box instead of running on past
+     the viewer (Elvis's feedback, 2026-09-03). A CSS-grid `stretch` alone
+     doesn't achieve this: with `align-items: stretch` and no explicit cap, a
+     grid row auto-sizes to its *tallest* item, so a long table would just
+     drag the row (and the video+stats column with it) up to match its own
+     full content height instead of ever being capped -- min-height:0 on a
+     flex child only helps once something upstream actually bounds the
+     height, which is what this max-height is for. Still stretches to (and
+     is capped by) the video+stats column's real height whenever that's
+     shorter than the cap. */
+  max-height: calc(100vh - 6rem);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.investigation-table-scroll {
+  flex: 1;
+  min-height: 8rem;
+  overflow-y: auto;
 }
 
 .detection-criteria {

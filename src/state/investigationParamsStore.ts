@@ -1,13 +1,15 @@
 /**
- * Persistence for the per-video hole-investigation threshold.
+ * Persistence for the hole-investigation threshold.
  *
- * The threshold has to be "visible and adjustable, not a buried constant"
- * (CLAUDE.md); this is the other half of that requirement -- a chosen value
- * has to survive a reload, same as everything else the user sets by hand.
+ * Global (revised 2026-09-03), not per-video: a facility scores every video
+ * in a study against the same criteria, so a value set once should be the
+ * standard for every later video, not something re-chosen per clip -- see
+ * CLAUDE.md. Stored under a settings key, same shape as the default
+ * platform diameter.
  */
 
-import { DB_VERSION, STORE_INVESTIGATION_PARAMS } from './schema.ts'
-import type { StoredInvestigationParams } from './schema.ts'
+import { DB_VERSION, KEY_INVESTIGATION_PARAMS, STORE_SETTINGS } from './schema.ts'
+import type { StoredGlobalInvestigationParams } from './schema.ts'
 import type { InvestigationParams } from '../core/events.ts'
 import { openDatabase } from './videoStore.ts'
 
@@ -18,8 +20,8 @@ function runTransaction<T>(
   return openDatabase().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
-        const transaction = db.transaction(STORE_INVESTIGATION_PARAMS, mode)
-        const request = work(transaction.objectStore(STORE_INVESTIGATION_PARAMS))
+        const transaction = db.transaction(STORE_SETTINGS, mode)
+        const request = work(transaction.objectStore(STORE_SETTINGS))
         transaction.oncomplete = () => resolve(request.result)
         transaction.onerror = () =>
           reject(transaction.error ?? new Error('Database transaction failed'))
@@ -29,12 +31,9 @@ function runTransaction<T>(
   )
 }
 
-export function saveInvestigationParams(
-  videoId: string,
-  investigationParams: InvestigationParams,
-): Promise<IDBValidKey> {
-  const record: StoredInvestigationParams = {
-    videoId,
+export function saveInvestigationParams(investigationParams: InvestigationParams): Promise<IDBValidKey> {
+  const record: StoredGlobalInvestigationParams = {
+    key: KEY_INVESTIGATION_PARAMS,
     schemaVersion: DB_VERSION,
     updatedAt: Date.now(),
     investigationParams,
@@ -42,15 +41,9 @@ export function saveInvestigationParams(
   return runTransaction('readwrite', (store) => store.put(record))
 }
 
-export async function loadInvestigationParams(
-  videoId: string,
-): Promise<InvestigationParams | null> {
+export async function loadInvestigationParams(): Promise<InvestigationParams | null> {
   const record = await runTransaction('readonly', (store) =>
-    store.get(videoId) as IDBRequest<StoredInvestigationParams | undefined>,
+    store.get(KEY_INVESTIGATION_PARAMS) as IDBRequest<StoredGlobalInvestigationParams | undefined>,
   )
   return record?.investigationParams ?? null
-}
-
-export function deleteInvestigationParams(videoId: string): Promise<undefined> {
-  return runTransaction('readwrite', (store) => store.delete(videoId))
 }

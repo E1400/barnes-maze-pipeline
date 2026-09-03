@@ -10,6 +10,7 @@ import type { FrameTrack, TrackerParams } from '../core/tracking.ts'
 import type { PositionCorrection } from '../core/corrections.ts'
 import type { InvestigationParams } from '../core/events.ts'
 import type { InvestigationEdits } from '../core/investigationEdits.ts'
+import type { MeasureOverrides } from '../core/measureOverrides.ts'
 import type { Timebase } from '../core/timebase.ts'
 
 /**
@@ -17,7 +18,7 @@ import type { Timebase } from '../core/timebase.ts'
  * `migrations.ts`. This is the IndexedDB `version`, so bumping it triggers
  * `onupgradeneeded`.
  */
-export const DB_VERSION = 6
+export const DB_VERSION = 7
 
 export const DB_NAME = 'barnes-maze-pipeline'
 
@@ -36,18 +37,26 @@ export const KEY_ROI_TEMPLATE = 'roiTemplate'
  * own (still independently editable) diameter field.
  */
 export const KEY_DEFAULT_DIAMETER = 'defaultPlatformDiameterCm'
+/**
+ * Key under which the hole-investigation threshold lives in STORE_SETTINGS.
+ * Global, not per-video (revised 2026-09-03): a facility scores every video
+ * in a study against the same criteria, so a value set once should be the
+ * standard for every video after it, not something re-chosen per clip. The
+ * old per-video store (STORE_INVESTIGATION_PARAMS, below) is left in the
+ * schema unused rather than migrated -- no destructive migration needed for
+ * a value the UI simply stops reading and writing.
+ */
+export const KEY_INVESTIGATION_PARAMS = 'globalInvestigationParams'
 /** One tracking run's results per video, keyed by video id. */
 export const STORE_TRACKS = 'tracks'
 /** Manual position corrections per video, keyed by video id. */
 export const STORE_CORRECTIONS = 'corrections'
-/**
- * The hole-investigation threshold per video, keyed by video id. Per-video
- * (not global) because it's tuned against one clip's actual pixel scale and
- * camera distance while looking at that clip's own track.
- */
+/** @deprecated Superseded by the KEY_INVESTIGATION_PARAMS global setting. Left in the schema, unused, so existing per-video records aren't orphaned by a store deletion. */
 export const STORE_INVESTIGATION_PARAMS = 'investigationParams'
 /** Manual add/delete/edit overlay on the detected investigation list, per video. */
 export const STORE_INVESTIGATION_EDITS = 'investigationEdits'
+/** Manual overrides on computed per-trial measures (including the search-strategy label), per video. */
+export const STORE_MEASURE_OVERRIDES = 'measureOverrides'
 
 /**
  * A video the user has loaded, with everything needed to redisplay it after a
@@ -149,4 +158,20 @@ export interface StoredDefaultDiameter {
   readonly schemaVersion: number
   readonly updatedAt: number
   readonly diameterCm: number
+}
+
+/** The global hole-investigation threshold, shared by every video. */
+export interface StoredGlobalInvestigationParams {
+  readonly key: typeof KEY_INVESTIGATION_PARAMS
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly investigationParams: InvestigationParams
+}
+
+/** Manual overrides on one video's computed per-trial measures. */
+export interface StoredMeasureOverrides {
+  readonly videoId: string
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly overrides: MeasureOverrides
 }

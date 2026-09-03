@@ -18,7 +18,7 @@ async function trackFixture(page: Page, options: { calibrate?: boolean } = {}): 
     await page.getByLabel('Platform diameter (cm) for this video').fill('92')
   }
   await page.getByRole('button', { name: 'Track this video' }).click()
-  await page.getByText(/741 frames tracked/).waitFor({ timeout: 120_000 })
+  await page.getByText(/741 frames processed/).waitFor({ timeout: 120_000 })
 
   const section = page.locator('section.review-workspace')
   await section.locator('svg.correction-canvas').waitFor({ timeout: 10_000 })
@@ -130,16 +130,16 @@ test('a non-TRACKED frame is not draggable and says so', async ({ page }) => {
   await page.getByRole('button', { name: /Define maze|Review maze/ }).click()
   await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
   await page.getByRole('button', { name: 'Track this video' }).click()
-  await page.getByText(/905 frames tracked/).waitFor({ timeout: 120_000 })
+  await page.getByText(/905 frames processed/).waitFor({ timeout: 120_000 })
 
   const section = page.locator('section.review-workspace')
   const svg = section.locator('svg.correction-canvas')
   await svg.waitFor({ timeout: 10_000 })
   await section.scrollIntoViewIfNeeded()
 
-  await expect(section).toContainText('Tracking lost')
+  await expect(section).toContainText('Mouse not in view')
   await expect(svg.locator('circle.correction-point')).toHaveCount(0)
-  await expect(svg.locator('text.correction-state-badge')).toHaveText('Tracking lost')
+  await expect(svg.locator('text.correction-state-badge')).toHaveText('Mouse not in view')
   await expect(section.locator('.hint').filter({ hasText: /planned but not built yet/ })).toBeVisible()
 })
 
@@ -168,7 +168,7 @@ test('the detection criteria are shown and edited in real units, and recompute l
   expect(Number(await radiusInput.inputValue())).toBeGreaterThan(0)
   expect(Number(await minTimeInput.inputValue())).toBeGreaterThan(0)
 
-  const heading = section.locator('h3')
+  const heading = section.locator('.investigation-table-header h3')
   const before = await heading.innerText()
   await radiusInput.fill('200')
   await expect(heading).not.toHaveText(before)
@@ -190,7 +190,7 @@ test('an investigation can be added by hand, edited, and deleted', async ({ page
   const section = await trackFixture(page)
   await section.locator('.investigation-table').waitFor({ timeout: 10_000 })
 
-  const heading = section.locator('h3')
+  const heading = section.locator('.investigation-table-header h3')
   const countOf = async () => Number((await heading.innerText()).match(/\((\d+)\)/)![1])
   const before = await countOf()
 
@@ -216,7 +216,7 @@ test('an auto-detected investigation can be deleted, and investigation edits sur
   const section = await trackFixture(page)
   await section.locator('.investigation-table').waitFor({ timeout: 10_000 })
 
-  const heading = section.locator('h3')
+  const heading = section.locator('.investigation-table-header h3')
   const countOf = async () => Number((await heading.innerText()).match(/\((\d+)\)/)![1])
   const before = await countOf()
 

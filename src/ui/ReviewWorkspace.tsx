@@ -36,7 +36,7 @@ export default function ReviewWorkspace({ video, roi, trackingJob }: Props) {
   if (!roi || !completeness.hasRing) {
     return (
       <section aria-labelledby="review-heading" className="review-workspace">
-        <h2 id="review-heading">4. Review, correct, and detect hole visits</h2>
+        <h2 id="review-heading" className="step-heading">4. Review, correct, and detect hole visits</h2>
         <p className="hint">Define the maze layout above first.</p>
       </section>
     )
@@ -45,7 +45,7 @@ export default function ReviewWorkspace({ video, roi, trackingJob }: Props) {
   if (!review.tracks || !review.effective) {
     return (
       <section aria-labelledby="review-heading" className="review-workspace">
-        <h2 id="review-heading">4. Review, correct, and detect hole visits</h2>
+        <h2 id="review-heading" className="step-heading">4. Review, correct, and detect hole visits</h2>
         <p className="hint">Track the video above first.</p>
       </section>
     )
@@ -53,7 +53,7 @@ export default function ReviewWorkspace({ video, roi, trackingJob }: Props) {
 
   return (
     <section aria-labelledby="review-heading" className="review-workspace">
-      <h2 id="review-heading">4. Review, correct, and detect hole visits — {video.name}</h2>
+      <h2 id="review-heading" className="step-heading">4. Review, correct, and detect hole visits — {video.name}</h2>
       <p className="hint">
         Scrub or click the path to see where the tracker put the animal; drag a point to fix it.
         The investigation list on the right updates live.

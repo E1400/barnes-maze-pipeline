@@ -20,7 +20,6 @@ type Milestone = {
 }
 
 const REMAINING: readonly Milestone[] = [
-  { step: 'Classify search strategy (spatial / serial / random)', status: 'not built yet' },
   { step: 'Visualize and export CSV / XLSX', status: 'not built yet' },
 ]
 
@@ -70,7 +69,7 @@ export default function App() {
       )}
 
       <section aria-labelledby="remaining-heading">
-        <h2 id="remaining-heading">Remaining steps</h2>
+        <h2 id="remaining-heading" className="step-heading">Remaining steps</h2>
         <ol className="milestones" start={5}>
           {REMAINING.map((milestone) => (
             <li key={milestone.step}>

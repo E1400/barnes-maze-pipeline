@@ -412,7 +412,7 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
 
   return (
     <section aria-labelledby="roi-heading" className="roi" data-save-count={saveCount}>
-      <h2 id="roi-heading">2. Check the maze layout — {video.name}</h2>
+      <h2 id="roi-heading" className="step-heading">2. Check the maze layout — {video.name}</h2>
 
       <p className="status" role="status" aria-live="polite">
         {status ||
@@ -736,6 +736,12 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                     }}
                   />
                 </label>
+                <p className="hint">
+                  What counts as &ldquo;investigating&rdquo; this hole once tracked is a{' '}
+                  <strong>global</strong> setting shared by every video (step 1 shows the current
+                  value) — set once, not re-chosen per clip, and fine-tuned in real units once
+                  this video is tracked (step 4).
+                </p>
               </div>
 
               <div className="roi-section">

@@ -30,9 +30,14 @@ interface Props {
 /** How close (view units) a click has to land to jump to that frame. */
 const PATH_CLICK_TOLERANCE = 14
 
+// "LOST" reads as a tracking failure; most of it is just the animal not yet
+// placed on the platform at the start of a clip, which is normal, not an
+// error (Elvis's feedback, 2026-09-03). A genuine tracking failure inside a
+// trial looks the same here and is fixable the same way: scrub to it and
+// correct it by hand once state-relabeling ships.
 const STATE_LABEL: Record<FrameTrack['state'], string> = {
   TRACKED: 'Tracked',
-  LOST: 'Tracking lost',
+  LOST: 'Mouse not in view',
   OCCLUDED_IN_HOLE: 'In a hole',
   IN_ESCAPE_BOX: 'Escaped',
 }
@@ -219,9 +224,9 @@ export default function TrackViewer({ video, roi, review }: Props) {
 
       {current && current.state !== 'TRACKED' && (
         <p className="hint">
-          This frame is {STATE_LABEL[current.state].toLowerCase()}, so there&rsquo;s no automatic
-          point to correct here. Relabeling a frame&rsquo;s state by hand is planned but not built
-          yet.
+          This frame is marked &ldquo;{STATE_LABEL[current.state]}&rdquo;, so there&rsquo;s no
+          automatic point to correct here. Relabeling a frame&rsquo;s state by hand is planned but
+          not built yet.
         </p>
       )}
     </div>
