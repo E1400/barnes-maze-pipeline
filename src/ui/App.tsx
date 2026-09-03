@@ -9,8 +9,7 @@ import { useState } from 'react'
 import VideoLoader from './VideoLoader.tsx'
 import RoiEditor from './RoiEditor.tsx'
 import TrackingPanel from './TrackingPanel.tsx'
-import CorrectionViewer from './CorrectionViewer.tsx'
-import MeasuresPanel from './MeasuresPanel.tsx'
+import ReviewWorkspace from './ReviewWorkspace.tsx'
 import { useTrackingJob } from './useTrackingJob.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { RoiDefinition } from '../core/roi.ts'
@@ -61,14 +60,8 @@ export default function App() {
             roi={roi}
             trackingJob={trackingJob}
           />
-          <CorrectionViewer
-            key={`${selected.id}-correction`}
-            video={selected}
-            roi={roi}
-            trackingJob={trackingJob}
-          />
-          <MeasuresPanel
-            key={`${selected.id}-measures`}
+          <ReviewWorkspace
+            key={`${selected.id}-review`}
             video={selected}
             roi={roi}
             trackingJob={trackingJob}
@@ -78,7 +71,7 @@ export default function App() {
 
       <section aria-labelledby="remaining-heading">
         <h2 id="remaining-heading">Remaining steps</h2>
-        <ol className="milestones" start={6}>
+        <ol className="milestones" start={5}>
           {REMAINING.map((milestone) => (
             <li key={milestone.step}>
               <span>{milestone.step}</span>

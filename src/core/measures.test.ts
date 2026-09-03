@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { computeTrialMeasures } from './measures.ts'
+import { computeTrialMeasures, computeTrialMeasuresFromInvestigations } from './measures.ts'
 import type { EffectiveFrame } from './corrections.ts'
+import {
+  addManualInvestigation,
+  applyInvestigationEdits,
+  EMPTY_INVESTIGATION_EDITS,
+} from './investigationEdits.ts'
 import type { RoiDefinition } from './roi.ts'
 import { buildTimebase } from './timebase.ts'
 import type { Point } from './geometry.ts'
@@ -207,5 +212,24 @@ describe('computeTrialMeasures: edge cases', () => {
     const measures = computeTrialMeasures(frames, makeRoi(), TIMEBASE)
     expect(measures.investigations).toHaveLength(1)
     expect(measures.investigations[0]!.isTarget).toBe(true)
+  })
+})
+
+describe('computeTrialMeasuresFromInvestigations: reviewer edits change the numbers', () => {
+  it('a manually added target investigation produces a primary latency the detector alone did not', () => {
+    // The animal reaches the target at frame 10 but the auto-detector never
+    // confirms it (e.g. below threshold); a reviewer marks it by hand.
+    const frames = Array.from({ length: 15 }, (_, i) => tracked(i, { x: 0, y: 0 }))
+    const roi = makeRoi()
+    const edits = addManualInvestigation(EMPTY_INVESTIGATION_EDITS, {
+      id: 'm1',
+      holeIndex: 0,
+      startFrame: 10,
+      endFrame: 12,
+    })
+    const effective = applyInvestigationEdits([], edits, roi.targetHole)
+    const measures = computeTrialMeasuresFromInvestigations(frames, roi, TIMEBASE, effective)
+    expect(measures.primaryLatencySeconds).toBeCloseTo(10 / 30, 6)
+    expect(measures.investigations[0]).toMatchObject({ id: 'm1', source: 'manual' })
   })
 })

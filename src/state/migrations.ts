@@ -10,6 +10,7 @@
 import {
   DB_VERSION,
   STORE_CORRECTIONS,
+  STORE_INVESTIGATION_EDITS,
   STORE_INVESTIGATION_PARAMS,
   STORE_ROIS,
   STORE_SETTINGS,
@@ -55,6 +56,14 @@ const STEPS: Record<number, UpgradeStep> = {
   5: (db) => {
     if (!db.objectStoreNames.contains(STORE_INVESTIGATION_PARAMS)) {
       db.createObjectStore(STORE_INVESTIGATION_PARAMS, { keyPath: 'videoId' })
+    }
+  },
+  // v6 adds the manual investigation-edit overlay. Purely additive; the
+  // default platform diameter lives in the existing STORE_SETTINGS store
+  // (a new key, not a new store) so it needs no migration step of its own.
+  6: (db) => {
+    if (!db.objectStoreNames.contains(STORE_INVESTIGATION_EDITS)) {
+      db.createObjectStore(STORE_INVESTIGATION_EDITS, { keyPath: 'videoId' })
     }
   },
 }

@@ -191,20 +191,28 @@ just change code silently, when a decision changes.
   adds real complexity (portals, escape-key handling, focus trapping) this
   pass didn't need. The ROI editor (step 2) got the same toggle, also
   defaulted to expanded, for consistency.
-- **`.roi-hole--target`'s fill must never be `none`.** It shares a look with
-  `.roi-hole--target-ring` (the hollow outline drawn *around* the target
-  hole) but is a structurally different element — the main, normally-filled
-  hole circle — and grouping them under one `fill: none` rule silently made
-  the target hole undraggable: SVG only hit-tests a shape's *painted* area,
-  so with no fill, only its ~2px stroke edge registered pointer events, and
-  a drag starting at the shape's centre (where every other hole works)
-  missed it entirely (AI_NOTES mistake 14). Fixed with a solid, distinct
-  fill (`#e2453c`), which also directly serves the separate ask to make the
-  target more visually obvious than a slightly-thicker outline — the same
-  bug had been suppressing both correctness and visibility together. The
-  correction viewer's trajectory plot gained the same outer ring the ROI
-  editor already had, so the target reads clearly there too, not just
-  during layout.
+- **`.roi-hole--target`'s fill must never be `none`, but it can be (and now
+  is) translucent.** It shares a look with `.roi-hole--target-ring` (the
+  hollow outline drawn *around* the target hole) but is a structurally
+  different element — the main hole circle — and grouping them under one
+  `fill: none` rule once silently made the target hole undraggable: SVG only
+  hit-tests a shape's *painted* area, so with no fill, only its ~2px stroke
+  edge registered pointer events, and a drag starting at the shape's centre
+  (where every other hole works) missed it entirely (AI_NOTES mistake 14).
+  That was originally fixed with a *solid* distinct fill, on the theory that
+  solid also served visibility. It didn't, for the one moment visibility
+  matters most: reviewing tracked footage, a solid target hole hides the
+  mouse at the exact instant it enters the hole — the thing a reviewer is
+  there to watch (Elvis's feedback, 2026-09-03). Fixed properly now: a
+  translucent fill (`rgba(226, 69, 60, 0.35)`) plus a coloured stroke. Still
+  a real, non-`none` fill — SVG hit-testing cares whether a shape *has* a
+  fill, not its opacity — so it stays exactly as draggable as before; opacity
+  was the missing degree of freedom the first fix didn't reach for. All hole
+  circles (target and regular) also got thinner strokes generally, same
+  reasoning: obvious enough to read at a glance, never thick enough to
+  obscure the animal underneath. The correction viewer's trajectory plot
+  keeps the same outer ring the ROI editor has, so the target reads clearly
+  there too, not just during layout.
 - **Pins are updated separately from ROI (`updatePins()` in
   `src/state/roiStore.ts`), never as a side effect of saving ROI geometry.**
   `CorrectionViewer` and `RoiEditor` both have their own pin toggle on the
@@ -328,8 +336,72 @@ just change code silently, when a decision changes.
   honest-gap policy as everywhere else. Verified against real tracked output
   from `test51.mp4` and `test53.mp4` (not just synthetic frames) before
   calling this done — see AI_NOTES.md.
+- **Review workspace (2026-09-03): steps 4 and 5 merged into one screen,**
+  the video viewer and the investigation list side by side rather than
+  stacked sections a reviewer scrolled between (Elvis's feedback). Data
+  (tracks, corrections, frame index, the decoded frame) moved into a shared
+  hook, `useTrackReview` (`src/ui/useTrackReview.ts`), called once by the new
+  `ReviewWorkspace` and passed to `TrackViewer` (the rendering half of the
+  old `CorrectionViewer`) and `InvestigationPanel` (the old `MeasuresPanel`'s
+  content) as props — the two halves would otherwise each load their own
+  copy of the track and have no way to share one frame index, which is
+  exactly what a "jump to this investigation" button needs. Gating
+  ("define the maze first" / "track the video first") is asserted once at
+  the workspace level, not duplicated per half.
+- **Manual investigation editing (2026-09-03), `src/core/investigationEdits.ts`:**
+  add/delete/edit for the hole-investigation list, an overlay on the
+  detector's output exactly like `corrections.ts` is for positions — the
+  detected list itself is never mutated. An auto-detected investigation is
+  identified by `auto-${startFrame}` (unique: the detector's runs never
+  overlap) and "deleted" by adding that id to `removedAutoIds`, never by
+  removing it from the detector's own array. A manually added investigation
+  gets its own id (`crypto.randomUUID()`, assigned by the caller — the pure
+  module stays deterministic and testable) and is fully editable in place
+  (hole, start frame, end frame) since there's no "original" to compare
+  against. This exists because the detector's honest-gap policy means a real
+  event can go undetected — CLAUDE.md's non-negotiable "tracking failures
+  must be visibly flagged, never silently interpolated" cuts both ways: an
+  reviewer who *watched* the mouse enter the target hole needs to be able to
+  say so, not have the tool insist it never happened. `measures.ts` was
+  split (`computeTrialMeasuresFromInvestigations`, generic over the
+  investigation shape) so the UI can feed it this edited list directly
+  rather than only the detector's raw output; `computeTrialMeasures` is now
+  a thin wrapper that calls `detectInvestigations` first, kept for the
+  existing tests and any caller with no edits to apply.
+- **Detection criteria shown in real units, not an opaque multiplier.** The
+  underlying params (`proximityRadiusFactor`, `minFrames`) are unchanged —
+  still the values `events.ts` actually uses — but the UI displays and edits
+  the *derived* radius (cm once the platform is calibrated, px otherwise) and
+  minimum duration (seconds, via the clip's own nominal fps), converting
+  back to the stored factor/frame-count on input. "×1.5 hole radii" and "3
+  frames" are correct but not something a reviewer can reason about without
+  doing the arithmetic themselves; a radius in cm and a duration in seconds
+  are the units the literature and the researcher actually think in.
+- **Platform diameter has a global default (2026-09-03), entered prominently
+  in step 1** (`VideoLoader.tsx`, `STORE_SETTINGS` key `defaultPlatformDiameterCm`)
+  and used to seed every newly created ROI's own diameter field — a facility
+  runs the same rig across a whole folder of videos, so re-typing the same
+  number per video is exactly the kind of per-video click cost the brief
+  asks to avoid (same reasoning as the ROI template). Still fully overridable
+  per video in step 2, which is the field that actually drives that video's
+  calibration; the default only seeds a *new* ROI, it never overwrites an
+  already-saved one. Step 2's own diameter field moved to the top of the
+  sidebar in a highlighted callout (dashed border while unset, solid once
+  it's set — a shape difference, not just a colour one) rather than being
+  the third subsection down, since real-world units are load-bearing for
+  every measure downstream, not a footnote.
+- **`.roi-hole--target`'s fill is translucent, not solid (revised
+  2026-09-03).** A solid fill (the original fix for mistake 14, see below)
+  hid the mouse at the exact moment it entered the target hole — the one
+  moment a reviewer most needs to see (Elvis's feedback). Still a real,
+  non-`none` fill (`rgba(226, 69, 60, 0.35)`) so it stays exactly as
+  draggable as before — SVG hit-testing cares whether a shape *has* a fill,
+  not its opacity. All hole circles got thinner strokes at the same time,
+  same reasoning: legible at a glance, never thick enough to cover the
+  animal underneath.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
-  parameters, per-video investigation threshold) — a refresh must never lose
+  parameters, per-video investigation threshold, manual investigation edits,
+  the global default platform diameter) — a refresh must never lose
   annotation work.
 - **Export:** SheetJS for CSV/XLSX.
 - **Testing:** Vitest for pure logic (timebase math, ROI geometry, event

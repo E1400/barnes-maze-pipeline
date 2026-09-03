@@ -9,6 +9,7 @@ import type { DetectionParams } from '../core/cv/detector.ts'
 import type { FrameTrack, TrackerParams } from '../core/tracking.ts'
 import type { PositionCorrection } from '../core/corrections.ts'
 import type { InvestigationParams } from '../core/events.ts'
+import type { InvestigationEdits } from '../core/investigationEdits.ts'
 import type { Timebase } from '../core/timebase.ts'
 
 /**
@@ -16,7 +17,7 @@ import type { Timebase } from '../core/timebase.ts'
  * `migrations.ts`. This is the IndexedDB `version`, so bumping it triggers
  * `onupgradeneeded`.
  */
-export const DB_VERSION = 5
+export const DB_VERSION = 6
 
 export const DB_NAME = 'barnes-maze-pipeline'
 
@@ -28,6 +29,13 @@ export const STORE_SETTINGS = 'settings'
 
 /** Key under which the reusable ROI template lives in STORE_SETTINGS. */
 export const KEY_ROI_TEMPLATE = 'roiTemplate'
+/**
+ * Key under which the facility's default platform diameter lives in
+ * STORE_SETTINGS. A rig's platform doesn't change between trials, so this is
+ * entered once, prominently, at video-load time and seeds every new ROI's
+ * own (still independently editable) diameter field.
+ */
+export const KEY_DEFAULT_DIAMETER = 'defaultPlatformDiameterCm'
 /** One tracking run's results per video, keyed by video id. */
 export const STORE_TRACKS = 'tracks'
 /** Manual position corrections per video, keyed by video id. */
@@ -38,6 +46,8 @@ export const STORE_CORRECTIONS = 'corrections'
  * camera distance while looking at that clip's own track.
  */
 export const STORE_INVESTIGATION_PARAMS = 'investigationParams'
+/** Manual add/delete/edit overlay on the detected investigation list, per video. */
+export const STORE_INVESTIGATION_EDITS = 'investigationEdits'
 
 /**
  * A video the user has loaded, with everything needed to redisplay it after a
@@ -123,4 +133,20 @@ export interface StoredInvestigationParams {
   readonly schemaVersion: number
   readonly updatedAt: number
   readonly investigationParams: InvestigationParams
+}
+
+/** Manual add/delete/edit overlay on one video's detected investigation list. */
+export interface StoredInvestigationEdits {
+  readonly videoId: string
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly edits: InvestigationEdits
+}
+
+/** The facility's default platform diameter, applied to every newly created ROI. */
+export interface StoredDefaultDiameter {
+  readonly key: typeof KEY_DEFAULT_DIAMETER
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly diameterCm: number
 }

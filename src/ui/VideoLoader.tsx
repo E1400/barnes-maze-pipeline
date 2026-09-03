@@ -15,6 +15,8 @@ import { deleteRoi, listDefinedVideoIds } from '../state/roiStore.ts'
 import { deleteTracks, listTrackedVideoIds } from '../state/trackStore.ts'
 import { deleteCorrections } from '../state/correctionStore.ts'
 import { deleteInvestigationParams } from '../state/investigationParamsStore.ts'
+import { deleteInvestigationEdits } from '../state/investigationEditsStore.ts'
+import { loadDefaultPlatformDiameterCm, saveDefaultPlatformDiameterCm } from '../state/roiStore.ts'
 import { DB_VERSION, videoId } from '../state/schema.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { PipelineProgress } from '../core/cv/pipeline.ts'
@@ -61,7 +63,12 @@ export default function VideoLoader({
   const [isLoading, setIsLoading] = useState(true)
   const [definedVideoIds, setDefinedVideoIds] = useState<Set<string>>(new Set())
   const [trackedVideoIds, setTrackedVideoIds] = useState<Set<string>>(new Set())
+  const [defaultDiameterCm, setDefaultDiameterCm] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    void loadDefaultPlatformDiameterCm().then(setDefaultDiameterCm)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -164,6 +171,7 @@ export default function VideoLoader({
     await deleteTracks(video.id)
     await deleteCorrections(video.id)
     await deleteInvestigationParams(video.id)
+    await deleteInvestigationEdits(video.id)
     setVideos(await listVideos())
     setStatus(`Removed ${video.name}.`)
   }, [])
@@ -204,6 +212,27 @@ export default function VideoLoader({
         <p className="hint">
           Videos stay on this machine. Nothing is uploaded, and they are saved
           in this browser so a reload does not lose them.
+        </p>
+      </div>
+
+      <div className="calibration-callout">
+        <label htmlFor="default-diameter">Platform diameter (cm)</label>
+        <input
+          id="default-diameter"
+          type="number"
+          min={1}
+          step="any"
+          placeholder="e.g. 92"
+          value={defaultDiameterCm ?? ''}
+          onChange={(event) => {
+            const value = event.target.value === '' ? null : Number(event.target.value)
+            setDefaultDiameterCm(value)
+            if (value !== null && value > 0) void saveDefaultPlatformDiameterCm(value)
+          }}
+        />
+        <p className="hint">
+          Real-world measurements depend on this. Set it once here — every new maze layout
+          starts from it, and you can still fine-tune it per video in step 2.
         </p>
       </div>
 

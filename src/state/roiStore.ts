@@ -8,11 +8,12 @@
 
 import {
   DB_VERSION,
+  KEY_DEFAULT_DIAMETER,
   KEY_ROI_TEMPLATE,
   STORE_ROIS,
   STORE_SETTINGS,
 } from './schema.ts'
-import type { StoredRoi, StoredRoiTemplate } from './schema.ts'
+import type { StoredDefaultDiameter, StoredRoi, StoredRoiTemplate } from './schema.ts'
 import { roiCompleteness, type RoiDefinition } from '../core/roi.ts'
 import { openDatabase } from './videoStore.ts'
 
@@ -137,4 +138,26 @@ export function loadRoiTemplate(): Promise<StoredRoiTemplate | undefined> {
   return runTransaction(STORE_SETTINGS, 'readonly', (store) =>
     store.get(KEY_ROI_TEMPLATE) as IDBRequest<StoredRoiTemplate | undefined>,
   )
+}
+
+/**
+ * The facility's default platform diameter -- the same rig is used across a
+ * batch of videos, so this is set once and seeds every new ROI's own
+ * (independently editable) diameter, rather than being re-typed per video.
+ */
+export function saveDefaultPlatformDiameterCm(diameterCm: number): Promise<IDBValidKey> {
+  const record: StoredDefaultDiameter = {
+    key: KEY_DEFAULT_DIAMETER,
+    schemaVersion: DB_VERSION,
+    updatedAt: Date.now(),
+    diameterCm,
+  }
+  return runTransaction(STORE_SETTINGS, 'readwrite', (store) => store.put(record))
+}
+
+export async function loadDefaultPlatformDiameterCm(): Promise<number | null> {
+  const record = await runTransaction(STORE_SETTINGS, 'readonly', (store) =>
+    store.get(KEY_DEFAULT_DIAMETER) as IDBRequest<StoredDefaultDiameter | undefined>,
+  )
+  return record?.diameterCm ?? null
 }

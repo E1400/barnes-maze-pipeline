@@ -126,13 +126,21 @@ function computePathAndSpeed(
   }
 }
 
-export function computeTrialMeasures(
+/**
+ * The aggregation logic, factored out from investigation *detection* so the
+ * UI can pass in a detected list with manual edits layered on (see
+ * `core/investigationEdits.ts`) rather than only the detector's raw output.
+ * Generic over the investigation shape so a caller's edited/id-tagged list
+ * comes back out through `investigations` unchanged, not narrowed away.
+ */
+export function computeTrialMeasuresFromInvestigations<
+  T extends { readonly isTarget: boolean; readonly startFrame: number },
+>(
   frames: readonly EffectiveFrame[],
   roi: RoiDefinition,
   timebase: Timebase,
-  investigationParams: InvestigationParams = DEFAULT_INVESTIGATION_PARAMS,
-): TrialMeasures {
-  const investigations = detectInvestigations(frames, roi, investigationParams)
+  investigations: readonly T[],
+): Omit<TrialMeasures, 'investigations'> & { readonly investigations: readonly T[] } {
   const trialStart = frames.length > 0 ? frameTimeSeconds(timebase, 0) : 0
 
   const firstTarget = investigations.find((e) => e.isTarget) ?? null
@@ -163,4 +171,14 @@ export function computeTrialMeasures(
     quadrantTimeSeconds,
     investigations,
   }
+}
+
+export function computeTrialMeasures(
+  frames: readonly EffectiveFrame[],
+  roi: RoiDefinition,
+  timebase: Timebase,
+  investigationParams: InvestigationParams = DEFAULT_INVESTIGATION_PARAMS,
+): TrialMeasures {
+  const investigations = detectInvestigations(frames, roi, investigationParams)
+  return computeTrialMeasuresFromInvestigations(frames, roi, timebase, investigations)
 }

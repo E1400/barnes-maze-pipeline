@@ -486,3 +486,50 @@ one that traces back to a specific, inspectable frame range. Full existing
 e2e suite (20 tests across roi/correction/smoke) re-run afterward and stayed
 green, confirming the new IndexedDB store (`investigationParams`, DB v4->v5)
 and the new step-5 section didn't disturb anything upstream.
+
+**Investigation editing and the review-workspace merge (this branch).**
+Elvis's feedback covered a lot of ground at once (visual, layout, units,
+editability) -- see CLAUDE.md's new bullets for what changed and why. Two
+things worth recording about how this was verified.
+
+First, a real scare that turned out not to be a real bug. Manually testing
+add/edit/delete-then-reload for investigation edits, one specific sequence
+(add a manual entry, edit it, delete it, delete an auto entry, reload)
+appeared to lose the auto-deletion -- the count came back wrong after
+reload. Rather than assume the debounced-save logic was broken and start
+rewriting it, I dumped IndexedDB directly after each step (`indexedDB.open`
++ `getAll` in a `page.evaluate`), which showed every single write landing
+correctly, including the final one. That ruled out the save path. I then
+added temporary `console.log` tracing to `InvestigationPanel.tsx` (the same
+diagnose-with-real-tracing method as mistake 13) and re-ran the *exact*
+failing sequence in isolation -- and it passed cleanly, and kept passing on
+every subsequent clean run. The actual cause: I had been running these
+verification scripts against the Vite dev server while *simultaneously*
+editing the source files it was serving, so a Vite HMR reload landed
+mid-test and corrupted that one run's in-page state -- a test-environment
+artifact, not a product defect. Recorded here rather than as a numbered
+mistake because it wasn't one: per the standing rule about not blurring
+demonstrated vs. predicted failures, this is worth being equally careful
+about in the other direction -- a scary-looking result that traces back to
+the test harness, not the code, isn't a defect just because it was alarming.
+Lesson kept for future sessions: don't run live-browser Playwright
+verification against a dev server while concurrently editing the files it's
+serving; use the production build (or at least pause edits) for anything
+where a false HMR-induced failure would be expensive to chase.
+
+Second, a real process mistake, not a product one: an earlier `git rm` for
+two old spec files partially failed (one of the two had uncommitted local
+edits, which makes `git rm` abort the whole command atomically) and I didn't
+notice -- `correction.spec.ts` stayed on disk, unedited, still asserting the
+pre-merge DOM (`section.correction`), and duly failed four tests against the
+new merged workspace on the next full run. Caught by running the *entire*
+e2e suite, not just the new spec file, before calling this done -- exactly
+why that's the standing practice rather than trusting one target file's
+green run.
+
+All three real sample clips re-verified against the finished workspace
+(translucent-but-still-draggable target hole, the global default diameter
+seeding a freshly detected ROI, live unit-converted detection criteria,
+jump-to-frame, add/edit/delete, and all of it surviving a reload) via
+throwaway Playwright scripts before writing the permanent e2e coverage, same
+methodology as every prior chunk.

@@ -34,7 +34,13 @@ import {
   type RoiDefinition,
 } from '../core/roi.ts'
 import { getVideo } from '../state/videoStore.ts'
-import { loadRoi, loadRoiTemplate, saveRoi, saveRoiTemplate } from '../state/roiStore.ts'
+import {
+  loadDefaultPlatformDiameterCm,
+  loadRoi,
+  loadRoiTemplate,
+  saveRoi,
+  saveRoiTemplate,
+} from '../state/roiStore.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import { openFrameSource, type FrameSource } from './frameSource.ts'
 import FrameScrubber from './FrameScrubber.tsx'
@@ -86,6 +92,14 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
   const [expanded, setExpanded] = useState(true)
   const svgRef = useRef<SVGSVGElement>(null)
   const dragOrigin = useRef<Point | null>(null)
+  // The facility's default diameter, read once and used only to seed a
+  // *newly created* layout -- an already-saved roi's own value always wins.
+  const defaultDiameterCm = useRef<number | null>(null)
+  useEffect(() => {
+    void loadDefaultPlatformDiameterCm().then((value) => {
+      defaultDiameterCm.current = value
+    })
+  }, [])
 
   const width = source?.width ?? 640
   const height = source?.height ?? 480
@@ -194,7 +208,7 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
             ...next,
             holes: detection.holes.map((h) => ({ x: h.x, y: h.y })),
             targetHole: current?.targetHole ?? null,
-            platformDiameterCm: current?.platformDiameterCm ?? null,
+            platformDiameterCm: current?.platformDiameterCm ?? defaultDiameterCm.current,
           }
         })
         setHoleCount(detection.holeCount)
@@ -313,7 +327,12 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
         return
       }
       const { platformRadius, ring } = ringFromClicks(next[0]!, next[1]!, next[2]!, holeCount)
-      setRoi(createRoi(next[0]!, platformRadius, ring, { source: 'manual' }))
+      const created = createRoi(next[0]!, platformRadius, ring, { source: 'manual' })
+      setRoi(
+        defaultDiameterCm.current !== null
+          ? setPlatformDiameterCm(created, defaultDiameterCm.current)
+          : created,
+      )
       setClicks([])
       setStatus(`${holeCount} holes placed by hand.`)
     },
@@ -588,6 +607,44 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
           )}
 
           {roi && (
+            <div className={`calibration-callout${scale === null ? ' calibration-callout--unset' : ''}`}>
+              <label htmlFor="roi-diameter">Platform diameter (cm) for this video</label>
+              <input
+                id="roi-diameter"
+                type="number"
+                min={1}
+                step="any"
+                value={roi.platformDiameterCm ?? ''}
+                placeholder="e.g. 92"
+                onChange={(event) =>
+                  setRoi(
+                    setPlatformDiameterCm(
+                      roi,
+                      event.target.value === '' ? null : Number(event.target.value),
+                    ),
+                  )
+                }
+              />
+              {scale === null ? (
+                <p className="hint">Needed for every real-world measurement below.</p>
+              ) : (
+                <ul className="measures">
+                  <li>{scale.toFixed(2)} px/cm</li>
+                  <li>Platform {bothUnits(roi.platformRadius * 2)} across</li>
+                  <li>Hole ring {bothUnits(roi.ring.ringRadius * 2)} across</li>
+                  <li>Hole {bothUnits(roi.holeRadius * 2)} across</li>
+                  <li>
+                    Gap between holes{' '}
+                    {bothUnits(
+                      2 * roi.ring.ringRadius * Math.sin(Math.PI / Math.max(1, roi.holes.length)),
+                    )}
+                  </li>
+                </ul>
+              )}
+            </div>
+          )}
+
+          {roi && (
             <>
               <h3>Size and position</h3>
               <label>
@@ -651,44 +708,6 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                   }
                 />
               </label>
-
-              <h3>Real-world scale</h3>
-              <label>
-                Platform diameter (cm)
-                <input
-                  type="number"
-                  min={1}
-                  step="any"
-                  value={roi.platformDiameterCm ?? ''}
-                  placeholder="e.g. 92"
-                  onChange={(event) =>
-                    setRoi(
-                      setPlatformDiameterCm(
-                        roi,
-                        event.target.value === '' ? null : Number(event.target.value),
-                      ),
-                    )
-                  }
-                />
-              </label>
-              {scale === null ? (
-                <p className="hint">
-                  Enter the real platform diameter to get distances in cm rather than pixels.
-                </p>
-              ) : (
-                <ul className="measures">
-                  <li>Scale: {scale.toFixed(2)} px/cm</li>
-                  <li>Platform: {bothUnits(roi.platformRadius * 2)} across</li>
-                  <li>Hole ring: {bothUnits(roi.ring.ringRadius * 2)} across</li>
-                  <li>Hole: {bothUnits(roi.holeRadius * 2)} across</li>
-                  <li>
-                    Gap between holes:{' '}
-                    {bothUnits(
-                      2 * roi.ring.ringRadius * Math.sin(Math.PI / Math.max(1, roi.holes.length)),
-                    )}
-                  </li>
-                </ul>
-              )}
 
               <h3>Escape target</h3>
               <label>

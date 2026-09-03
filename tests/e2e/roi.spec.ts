@@ -92,7 +92,7 @@ test('a hole nudges by keyboard and is marked as human-placed', async ({ page })
 
 test('calibration reports real-world sizes, not just a ratio', async ({ page }) => {
   await openEditor(page)
-  await page.getByLabel('Platform diameter (cm)').fill('92')
+  await page.getByLabel('Platform diameter (cm) for this video').fill('92')
   // Previously this only changed one line of small text, which read as doing
   // nothing at all.
   await expect(page.locator('.measures')).toContainText('92.0 cm')
@@ -112,7 +112,7 @@ test('the layout, target and pins survive a reload', async ({ page }) => {
   await page.getByRole('button', { name: 'Pin this frame' }).click()
   const section = page.locator('section.roi')
   const saves = Number(await section.getAttribute('data-save-count'))
-  await page.getByLabel('Platform diameter (cm)').fill('92')
+  await page.getByLabel('Platform diameter (cm) for this video').fill('92')
   await expect
     .poll(async () => Number(await section.getAttribute('data-save-count')))
     .toBeGreaterThan(saves)
@@ -122,7 +122,7 @@ test('the layout, target and pins survive a reload', async ({ page }) => {
   await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
   await expect(page.locator('circle.roi-hole')).toHaveCount(20)
   await expect(page.locator('circle.roi-hole--target-ring')).toHaveCount(1)
-  await expect(page.getByLabel('Platform diameter (cm)')).toHaveValue('92')
+  await expect(page.getByLabel('Platform diameter (cm) for this video')).toHaveValue('92')
   await expect(page.getByRole('button', { name: 'Remove pin' })).toBeVisible()
 })
 
