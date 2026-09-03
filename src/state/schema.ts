@@ -8,6 +8,7 @@ import type { RoiDefinition } from '../core/roi.ts'
 import type { DetectionParams } from '../core/cv/detector.ts'
 import type { FrameTrack, TrackerParams } from '../core/tracking.ts'
 import type { PositionCorrection } from '../core/corrections.ts'
+import type { InvestigationParams } from '../core/events.ts'
 import type { Timebase } from '../core/timebase.ts'
 
 /**
@@ -15,7 +16,7 @@ import type { Timebase } from '../core/timebase.ts'
  * `migrations.ts`. This is the IndexedDB `version`, so bumping it triggers
  * `onupgradeneeded`.
  */
-export const DB_VERSION = 4
+export const DB_VERSION = 5
 
 export const DB_NAME = 'barnes-maze-pipeline'
 
@@ -31,6 +32,12 @@ export const KEY_ROI_TEMPLATE = 'roiTemplate'
 export const STORE_TRACKS = 'tracks'
 /** Manual position corrections per video, keyed by video id. */
 export const STORE_CORRECTIONS = 'corrections'
+/**
+ * The hole-investigation threshold per video, keyed by video id. Per-video
+ * (not global) because it's tuned against one clip's actual pixel scale and
+ * camera distance while looking at that clip's own track.
+ */
+export const STORE_INVESTIGATION_PARAMS = 'investigationParams'
 
 /**
  * A video the user has loaded, with everything needed to redisplay it after a
@@ -104,4 +111,16 @@ export interface StoredCorrections {
   readonly schemaVersion: number
   readonly updatedAt: number
   readonly corrections: Readonly<Record<number, PositionCorrection>>
+}
+
+/**
+ * The hole-investigation threshold last used for one video, so a chosen
+ * threshold survives a reload -- the computed measures themselves are cheap
+ * to recompute and are never stored, only the parameters that produced them.
+ */
+export interface StoredInvestigationParams {
+  readonly videoId: string
+  readonly schemaVersion: number
+  readonly updatedAt: number
+  readonly investigationParams: InvestigationParams
 }

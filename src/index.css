@@ -672,3 +672,35 @@ a {
   stroke: #000000;
   stroke-width: 4px;
 }
+
+/* --- Measures panel --- */
+
+.investigation-params {
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.75rem 1rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.investigation-params legend {
+  font-weight: 600;
+  padding: 0 0.375rem;
+}
+
+.investigation-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9375rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.investigation-table th,
+.investigation-table td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.investigation-row--target {
+  font-weight: 600;
+}

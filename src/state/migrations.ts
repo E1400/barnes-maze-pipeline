@@ -10,6 +10,7 @@
 import {
   DB_VERSION,
   STORE_CORRECTIONS,
+  STORE_INVESTIGATION_PARAMS,
   STORE_ROIS,
   STORE_SETTINGS,
   STORE_TRACKS,
@@ -48,6 +49,12 @@ const STEPS: Record<number, UpgradeStep> = {
   4: (db) => {
     if (!db.objectStoreNames.contains(STORE_CORRECTIONS)) {
       db.createObjectStore(STORE_CORRECTIONS, { keyPath: 'videoId' })
+    }
+  },
+  // v5 adds the per-video hole-investigation threshold. Purely additive.
+  5: (db) => {
+    if (!db.objectStoreNames.contains(STORE_INVESTIGATION_PARAMS)) {
+      db.createObjectStore(STORE_INVESTIGATION_PARAMS, { keyPath: 'videoId' })
     }
   },
 }

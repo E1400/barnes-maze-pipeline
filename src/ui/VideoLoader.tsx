@@ -14,6 +14,7 @@ import { deleteVideo, listVideos, putVideo } from '../state/videoStore.ts'
 import { deleteRoi, listDefinedVideoIds } from '../state/roiStore.ts'
 import { deleteTracks, listTrackedVideoIds } from '../state/trackStore.ts'
 import { deleteCorrections } from '../state/correctionStore.ts'
+import { deleteInvestigationParams } from '../state/investigationParamsStore.ts'
 import { DB_VERSION, videoId } from '../state/schema.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { PipelineProgress } from '../core/cv/pipeline.ts'
@@ -162,6 +163,7 @@ export default function VideoLoader({
     await deleteRoi(video.id)
     await deleteTracks(video.id)
     await deleteCorrections(video.id)
+    await deleteInvestigationParams(video.id)
     setVideos(await listVideos())
     setStatus(`Removed ${video.name}.`)
   }, [])

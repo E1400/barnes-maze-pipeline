@@ -308,8 +308,29 @@ just change code silently, when a decision changes.
   scrubbing. Paired with an exact-frame-number entry field and a pin/unpin
   toggle with prev-pin/next-pin navigation, so a reviewer can mark a moment
   of interest and jump back to it without re-scrubbing.
+- **Hole-investigation detection and measures (2026-09-02):** `src/core/events.ts`
+  detects two kinds of investigation, both on the corrected track
+  (`EffectiveFrame[]`), never the raw one: `occlusion` events are read
+  straight off the tracker's own `OCCLUDED_IN_HOLE` runs (unconditional —
+  the tracker already confirmed them); `proximity` events are nose-to-hole
+  distance sustained for `minFrames` consecutive frames within
+  `proximityRadiusFactor × holeRadius`, both adjustable in the UI per
+  CLAUDE.md's "no buried constant" rule, not just documented as adjustable.
+  Frames already claimed by an occlusion are excluded from proximity
+  detection so the same span is never counted twice. `src/core/measures.ts`
+  turns that event list into the per-trial numbers: primary/total latency
+  and primary/total errors follow the exact definitions in "Domain facts"
+  below; path length and speed convert through the platform calibration and
+  are `null` (not zero) until it's set; quadrant time is oriented around the
+  target hole's angle from the platform centre and attributes
+  `OCCLUDED_IN_HOLE`/`IN_ESCAPE_BOX` frames to their known hole location
+  (not a guess) while `LOST` frames contribute to no quadrant at all, same
+  honest-gap policy as everywhere else. Verified against real tracked output
+  from `test51.mp4` and `test53.mp4` (not just synthetic frames) before
+  calling this done — see AI_NOTES.md.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
-  parameters) — a refresh must never lose annotation work.
+  parameters, per-video investigation threshold) — a refresh must never lose
+  annotation work.
 - **Export:** SheetJS for CSV/XLSX.
 - **Testing:** Vitest for pure logic (timebase math, ROI geometry, event
   detection, the search-strategy classifier), Playwright for an end-to-end

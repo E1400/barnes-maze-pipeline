@@ -10,6 +10,7 @@ import VideoLoader from './VideoLoader.tsx'
 import RoiEditor from './RoiEditor.tsx'
 import TrackingPanel from './TrackingPanel.tsx'
 import CorrectionViewer from './CorrectionViewer.tsx'
+import MeasuresPanel from './MeasuresPanel.tsx'
 import { useTrackingJob } from './useTrackingJob.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { RoiDefinition } from '../core/roi.ts'
@@ -20,7 +21,7 @@ type Milestone = {
 }
 
 const REMAINING: readonly Milestone[] = [
-  { step: 'Detect hole visits and compute per-trial measures', status: 'not built yet' },
+  { step: 'Classify search strategy (spatial / serial / random)', status: 'not built yet' },
   { step: 'Visualize and export CSV / XLSX', status: 'not built yet' },
 ]
 
@@ -66,12 +67,18 @@ export default function App() {
             roi={roi}
             trackingJob={trackingJob}
           />
+          <MeasuresPanel
+            key={`${selected.id}-measures`}
+            video={selected}
+            roi={roi}
+            trackingJob={trackingJob}
+          />
         </>
       )}
 
       <section aria-labelledby="remaining-heading">
         <h2 id="remaining-heading">Remaining steps</h2>
-        <ol className="milestones" start={5}>
+        <ol className="milestones" start={6}>
           {REMAINING.map((milestone) => (
             <li key={milestone.step}>
               <span>{milestone.step}</span>

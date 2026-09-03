@@ -458,3 +458,31 @@ correct result -- not just "the new tests pass," which would pass just as
 well for a fix that changed nothing. The cursor and expand-viewer changes
 are small enough that manual verification (measuring rendered width before
 and after the toggle, 352px -> 520px) was sufficient.
+
+**Hole investigations and per-trial measures (this branch).** Pure logic
+(`events.ts`, `measures.ts`) went in with 34 unit tests covering the
+adjacent-frame-gap and occlusion-vs-proximity double-counting cases before
+it ever touched a real video, but synthetic frames can't catch a units bug
+or a bad assumption about what real tracked data looks like, so I ran the
+built UI against all three real sample clips, not just `test51` again:
+`test51` (100% tracked, zero occlusion frames) confirmed total latency
+correctly reports "--" rather than fabricating an escape time when the
+tracker itself never confirmed one -- the honest-gap policy holding up one
+layer downstream of where it was built. `test53` and `test50` both have real
+`LOST` stretches (150 frames each, from a dim/transitional opening and a
+mid-clip gap respectively); path length and quadrant time on both came back
+as plausible non-crashing numbers with the `LOST` frames' time genuinely
+absent from every bucket, not zero-filled -- checked by summing the four
+quadrant times against total clip duration and confirming they don't add up
+to it. Retargeted the investigation threshold live in the running app (widen
+the proximity factor from 1.5x to 5x, then 10x) and watched the investigation
+count only ever grow, never behave inconsistently -- a real recompute, not a
+stale cached table. `test50` (5539 frames, the long clip) ran the full
+two-pass pipeline plus measures end-to-end with no console errors and
+produced 119 investigation events and a 87.73s primary latency that lines up
+with the frame range where hole 1 (the chosen target) actually gets
+investigated in the printed table -- not just a plausible-looking number,
+one that traces back to a specific, inspectable frame range. Full existing
+e2e suite (20 tests across roi/correction/smoke) re-run afterward and stayed
+green, confirming the new IndexedDB store (`investigationParams`, DB v4->v5)
+and the new step-5 section didn't disturb anything upstream.
