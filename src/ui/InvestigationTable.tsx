@@ -10,7 +10,7 @@
 import { nearestHoleIndex } from '../core/geometry.ts'
 import { frameTimeSeconds, rationalToNumber } from '../core/timebase.ts'
 import { roiPixelsPerCm, type RoiDefinition } from '../core/roi.ts'
-import type { EffectiveInvestigation } from '../core/investigationEdits.ts'
+import { groupConsecutiveInvestigations, type EffectiveInvestigation } from '../core/investigationEdits.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { TrackReview } from './useTrackReview.ts'
 import type { UseInvestigationsResult } from './useInvestigations.ts'
@@ -156,6 +156,9 @@ export default function InvestigationTable({ video, roi, review, inv }: Props) {
         <table className="investigation-table">
           <thead>
             <tr>
+              <th scope="col" title="Consecutive rows at the same hole share a number -- a coarser view of the same list, one row per visit rather than per detection.">
+                Visit
+              </th>
               <th scope="col">Hole</th>
               <th scope="col">Target</th>
               <th scope="col">Detected</th>
@@ -167,10 +170,11 @@ export default function InvestigationTable({ video, roi, review, inv }: Props) {
             </tr>
           </thead>
           <tbody>
-            {investigations.map((event) => {
+            {groupConsecutiveInvestigations(investigations).map((event) => {
               const isManual = event.source === 'manual'
               return (
                 <tr key={event.id} className={event.isTarget ? 'investigation-row--target' : undefined}>
+                  <td>{event.group}</td>
                   <td>
                     {isManual ? (
                       <input
@@ -222,10 +226,10 @@ export default function InvestigationTable({ video, roi, review, inv }: Props) {
                   <td className="investigation-actions">
                     <button
                       type="button"
-                      title="Jump the viewer to this moment"
+                      title="View this moment in the viewer"
                       onClick={() => review.setFrameIndex(event.startFrame)}
                     >
-                      Jump
+                      View
                     </button>
                     <button
                       type="button"

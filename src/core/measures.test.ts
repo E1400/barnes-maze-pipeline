@@ -110,6 +110,22 @@ describe('computeTrialMeasures: errors', () => {
     expect(measures.primaryErrors).toBe(1)
     expect(measures.totalErrors).toBe(1)
   })
+
+  it('counts a hole visited repeatedly as one error, not one per investigation event', () => {
+    const frames = [
+      // Two separate visits to hole 2 (non-target), with a trip away in between.
+      tracked(0, { x: -95, y: 0 }),
+      tracked(1, { x: -96, y: 0 }),
+      tracked(2, { x: -97, y: 0 }),
+      tracked(3, { x: 0, y: 0 }),
+      tracked(4, { x: -95, y: 0 }),
+      tracked(5, { x: -96, y: 0 }),
+      tracked(6, { x: -97, y: 0 }),
+    ]
+    const measures = computeTrialMeasures(frames, makeRoi(), TIMEBASE)
+    expect(measures.investigations.length).toBe(2) // two distinct investigation events
+    expect(measures.totalErrors).toBe(1) // but one distinct hole
+  })
 })
 
 describe('computeTrialMeasures: path length and speed', () => {

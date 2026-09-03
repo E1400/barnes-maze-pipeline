@@ -95,6 +95,26 @@ describe('classifySearchStrategy: serial', () => {
     expect(result?.label).toBe('serial')
     expect(result?.holeOrderScore).toBeGreaterThanOrEqual(DEFAULT_SEARCH_STRATEGY_PARAMS.serialOrderThreshold)
   })
+
+  it('is not diluted by repeated consecutive rows at the same hole', () => {
+    // Same ring walk as above, but each hole now gets 3 separate "nose came
+    // close" rows in a row instead of 1 -- the raw event count triples, but
+    // it's still only 5 distinct visits, and should classify the same way.
+    const roi = makeRoi(4)
+    const frames: EffectiveFrame[] = []
+    let frame = 0
+    const waypoints = [{ x: 0, y: 0 }, ...[0, 1, 2, 3, 4].map((i) => roi.holes[i]!)]
+    for (let seg = 0; seg < waypoints.length - 1; seg++) {
+      for (let t = 0; t <= 10; t++) frames.push(tracked(frame++, lerp(waypoints[seg]!, waypoints[seg + 1]!, t / 10)))
+    }
+    const investigations = [0, 1, 2, 3, 4].flatMap((hole, i) => {
+      const base = 8 + i * 11
+      return [0, 1, 2].map((j) => investigation(hole, base + j, hole === 4, `i-${hole}-${j}`))
+    })
+    const result = classifySearchStrategy(frames, roi, investigations)
+    expect(result?.label).toBe('serial')
+    expect(result?.holeOrderScore).toBeGreaterThanOrEqual(DEFAULT_SEARCH_STRATEGY_PARAMS.serialOrderThreshold)
+  })
 })
 
 describe('classifySearchStrategy: random', () => {

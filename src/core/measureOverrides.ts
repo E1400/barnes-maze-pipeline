@@ -9,6 +9,7 @@
  * always still there to compare against or revert to.
  */
 
+import type { QuadrantTimesSeconds } from './measures.ts'
 import type { SearchStrategyLabel } from './searchStrategy.ts'
 
 export interface MeasureOverrides {
@@ -39,4 +40,41 @@ export function clearOverride(overrides: MeasureOverrides, key: keyof MeasureOve
   const next = { ...overrides }
   delete next[key]
   return next
+}
+
+/**
+ * Merges overrides onto computed measures for anywhere that needs the
+ * "as displayed" numbers as plain values -- export, primarily -- rather
+ * than re-deriving the override-vs-computed logic each card already has.
+ * Generic over the investigations shape for the same reason
+ * `computeTrialMeasuresFromInvestigations` is: a caller with an edited
+ * (id/source-tagged) list shouldn't have it narrowed away.
+ */
+export function applyMeasureOverrides<
+  M extends {
+    readonly primaryLatencySeconds: number | null
+    readonly totalLatencySeconds: number | null
+    readonly primaryErrors: number
+    readonly totalErrors: number
+    readonly pathLengthCm: number | null
+    readonly averageSpeedCmPerSecond: number | null
+    readonly quadrantTimeSeconds: QuadrantTimesSeconds | null
+  },
+>(measures: M, overrides: MeasureOverrides): M {
+  return {
+    ...measures,
+    primaryLatencySeconds: overrides.primaryLatencySeconds ?? measures.primaryLatencySeconds,
+    totalLatencySeconds: overrides.totalLatencySeconds ?? measures.totalLatencySeconds,
+    primaryErrors: overrides.primaryErrors ?? measures.primaryErrors,
+    totalErrors: overrides.totalErrors ?? measures.totalErrors,
+    pathLengthCm: overrides.pathLengthCm ?? measures.pathLengthCm,
+    averageSpeedCmPerSecond: overrides.averageSpeedCmPerSecond ?? measures.averageSpeedCmPerSecond,
+    quadrantTimeSeconds: measures.quadrantTimeSeconds && {
+      target: overrides.quadrantTargetSeconds ?? measures.quadrantTimeSeconds.target,
+      opposite: overrides.quadrantOppositeSeconds ?? measures.quadrantTimeSeconds.opposite,
+      adjacentClockwise: overrides.quadrantAdjacentClockwiseSeconds ?? measures.quadrantTimeSeconds.adjacentClockwise,
+      adjacentCounterClockwise:
+        overrides.quadrantAdjacentCounterClockwiseSeconds ?? measures.quadrantTimeSeconds.adjacentCounterClockwise,
+    },
+  }
 }

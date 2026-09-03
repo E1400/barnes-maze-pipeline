@@ -34,9 +34,9 @@ export interface TrialMeasures {
   readonly primaryLatencySeconds: number | null
   /** Seconds from trial start to the first IN_ESCAPE_BOX frame. Null if the animal never escaped. */
   readonly totalLatencySeconds: number | null
-  /** Non-target investigations before the primary latency (or, if the target was never found, across the whole trial). */
+  /** Distinct non-target holes checked before the primary latency (or, if the target was never found, across the whole trial). Repeat visits to the same hole count once. */
   readonly primaryErrors: number
-  /** Non-target investigations across the whole trial. */
+  /** Distinct non-target holes checked across the whole trial. */
   readonly totalErrors: number
   /** Null until the platform diameter is calibrated -- pixels are not publishable. */
   readonly pathLengthCm: number | null
@@ -134,7 +134,7 @@ function computePathAndSpeed(
  * comes back out through `investigations` unchanged, not narrowed away.
  */
 export function computeTrialMeasuresFromInvestigations<
-  T extends { readonly isTarget: boolean; readonly startFrame: number },
+  T extends { readonly isTarget: boolean; readonly startFrame: number; readonly holeIndex: number },
 >(
   frames: readonly EffectiveFrame[],
   roi: RoiDefinition,
@@ -151,12 +151,19 @@ export function computeTrialMeasuresFromInvestigations<
   const totalLatencySeconds =
     firstEscapeFrame !== null ? frameTimeSeconds(timebase, firstEscapeFrame.frameIndex) - trialStart : null
 
+  // Errors count distinct holes checked, not investigation events -- five
+  // consecutive "nose came close" rows at the same hole are one error, the
+  // same way a reviewer would count it, not five (Elvis's feedback,
+  // 2026-09-03). The investigation-table's own "investigation" grouping
+  // (core/investigationEdits.ts) reflects the same idea for display.
   const nonTargetInvestigations = investigations.filter((e) => !e.isTarget)
-  const primaryErrors =
-    firstTarget !== null
-      ? nonTargetInvestigations.filter((e) => e.startFrame < firstTarget.startFrame).length
-      : nonTargetInvestigations.length
-  const totalErrors = nonTargetInvestigations.length
+  const primaryErrors = new Set(
+    (firstTarget !== null
+      ? nonTargetInvestigations.filter((e) => e.startFrame < firstTarget.startFrame)
+      : nonTargetInvestigations
+    ).map((e) => e.holeIndex),
+  ).size
+  const totalErrors = new Set(nonTargetInvestigations.map((e) => e.holeIndex)).size
 
   const { pathLengthCm, averageSpeedCmPerSecond } = computePathAndSpeed(frames, roi, timebase)
   const quadrantTimeSeconds = computeQuadrantTimes(frames, roi, timebase)

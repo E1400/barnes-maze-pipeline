@@ -20,7 +20,7 @@
 
 import type { EffectiveFrame } from './corrections.ts'
 import { angleFrom, distance, normalizeAngle } from './geometry.ts'
-import type { EffectiveInvestigation } from './investigationEdits.ts'
+import { groupConsecutiveInvestigations, type EffectiveInvestigation } from './investigationEdits.ts'
 import type { RoiDefinition } from './roi.ts'
 
 export type SearchStrategyLabel = 'spatial' | 'serial' | 'random'
@@ -111,7 +111,7 @@ export function classifySearchStrategy(
 
   const inRange = frames.filter((f) => f.frameIndex <= cutoffFrame)
   const investigationsInRange = sorted.filter((e) => e.startFrame <= cutoffFrame)
-  const errorsBeforeCutoff = investigationsInRange.filter((e) => !e.isTarget).length
+  const errorsBeforeCutoff = new Set(investigationsInRange.filter((e) => !e.isTarget).map((e) => e.holeIndex)).size
 
   const endPoint = targetReached
     ? roi.holes[roi.targetHole]!
@@ -120,7 +120,15 @@ export function classifySearchStrategy(
   const traveled = pathLength(inRange)
   const directness = traveled > 0 ? straightDistance / traveled : null
 
-  const holeSequence = investigationsInRange.map((e) => e.holeIndex)
+  // Grouped into visits (consecutive rows at the same hole collapsed to one
+  // step), not the raw investigation-event list -- otherwise five
+  // "nose came close" rows in a row at the same hole read as a long, noisy
+  // run of zero-length angular steps and drowned out the real signal
+  // (Elvis's feedback, 2026-09-03: every trial was coming out "random").
+  const holeSequence = groupConsecutiveInvestigations(investigationsInRange).reduce<number[]>((acc, g) => {
+    if (acc.at(-1) !== g.holeIndex) acc.push(g.holeIndex)
+    return acc
+  }, [])
   const orderScore = holeOrderScore(holeSequence, roi)
   const centerCrossings = countCenterCrossings(inRange, roi)
 
@@ -142,7 +150,7 @@ export function classifySearchStrategy(
   if (orderScore !== null && orderScore >= params.serialOrderThreshold) {
     return {
       label: 'serial',
-      reasoning: `Investigated ${holeSequence.length} holes in ring order (${(orderScore * 100).toFixed(0)}% of transitions continuing one direction) before ${endLabel}.`,
+      reasoning: `Visited ${holeSequence.length} holes in ring order (${(orderScore * 100).toFixed(0)}% of transitions continuing one direction) before ${endLabel}.`,
       targetReached,
       cutoffFrame,
       directness,
@@ -154,7 +162,7 @@ export function classifySearchStrategy(
 
   return {
     label: 'random',
-    reasoning: `Neither direct nor ordered: ${directness === null ? 'no measurable path' : `${(directness * 100).toFixed(0)}% path efficiency`}, ${holeSequence.length} hole${holeSequence.length === 1 ? '' : 's'} investigated with no consistent order, crossing the centre ${centerCrossings} time${centerCrossings === 1 ? '' : 's'} before ${endLabel}.`,
+    reasoning: `Neither direct nor ordered: ${directness === null ? 'no measurable path' : `${(directness * 100).toFixed(0)}% path efficiency`}, ${holeSequence.length} hole visit${holeSequence.length === 1 ? '' : 's'} with no consistent order, crossing the centre ${centerCrossings} time${centerCrossings === 1 ? '' : 's'} before ${endLabel}.`,
     targetReached,
     cutoffFrame,
     directness,

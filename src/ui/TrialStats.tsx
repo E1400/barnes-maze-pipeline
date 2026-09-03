@@ -125,7 +125,9 @@ export default function TrialStats({ video, roi, effective, investigations }: Pr
 
       <div className="stat-group">
         <h4>Errors</h4>
-        <p className="stat-group-desc">Non-target holes investigated.</p>
+        <p className="stat-group-desc">
+          Distinct non-target holes investigated — a hole checked repeatedly still counts once.
+        </p>
         <div className="stat-row">
           <NumericField label="Before target" format={(v) => String(v)} {...field('primaryErrors', measures.primaryErrors)} />
           <NumericField label="Whole trial" format={(v) => String(v)} {...field('totalErrors', measures.totalErrors)} />
@@ -153,27 +155,28 @@ export default function TrialStats({ video, roi, effective, investigations }: Pr
           <h4>Quadrant time</h4>
           <p className="stat-group-desc">
             Time spent in each quarter of the platform, oriented on the target — a standard
-            spatial-memory readout: a search biased toward the target quadrant indicates the
-            animal remembers where the target is.
+            spatial-memory readout: a search biased toward quadrant 1 (the target&rsquo;s own
+            quadrant) indicates the animal remembers where the target is. Quadrant 1-4 are numbered
+            clockwise from the target; see the legend in step 2 for which is which on this video.
           </p>
           <div className="stat-row">
             <NumericField
-              label="Target"
+              label="Quadrant 1"
               format={formatSeconds}
               {...field('quadrantTargetSeconds', measures.quadrantTimeSeconds.target)}
             />
             <NumericField
-              label="Opposite"
-              format={formatSeconds}
-              {...field('quadrantOppositeSeconds', measures.quadrantTimeSeconds.opposite)}
-            />
-            <NumericField
-              label="Adjacent (CW)"
+              label="Quadrant 2"
               format={formatSeconds}
               {...field('quadrantAdjacentClockwiseSeconds', measures.quadrantTimeSeconds.adjacentClockwise)}
             />
             <NumericField
-              label="Adjacent (CCW)"
+              label="Quadrant 3"
+              format={formatSeconds}
+              {...field('quadrantOppositeSeconds', measures.quadrantTimeSeconds.opposite)}
+            />
+            <NumericField
+              label="Quadrant 4"
               format={formatSeconds}
               {...field('quadrantAdjacentCounterClockwiseSeconds', measures.quadrantTimeSeconds.adjacentCounterClockwise)}
             />

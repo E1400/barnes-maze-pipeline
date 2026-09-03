@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { detectMaze } from '../core/cv/mazeDetect.ts'
 import { rgbaToGray } from '../core/cv/image.ts'
-import { nearestHoleIndex, ringFromClicks, type Point } from '../core/geometry.ts'
+import { angleFrom, nearestHoleIndex, ringFromClicks, type Point } from '../core/geometry.ts'
 import {
   DEFAULT_HOLE_COUNT,
   createRoi,
@@ -395,6 +395,29 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
     return value === null ? `${Math.round(px)} px` : `${Math.round(px)} px (${value.toFixed(1)} cm)`
   }
 
+  // Quadrant legend: matches measures.ts's quadrantFor exactly -- quadrant 1
+  // is centred on the target, 2/3/4 step 90 degrees clockwise from there
+  // (screen convention: y grows downward, so increasing angle sweeps
+  // clockwise as displayed). Only meaningful once a target is marked.
+  const quadrantLegend = useMemo(() => {
+    if (!roi || roi.targetHole === null) return null
+    const targetAngle = angleFrom(roi.center, roi.holes[roi.targetHole]!)
+    const boundaryAngles = [1, 3, 5, 7].map((n) => targetAngle + (n * Math.PI) / 4)
+    const labelAngles = [0, 1, 2, 3].map((n) => targetAngle + (n * Math.PI) / 2)
+    const labelRadius = roi.platformRadius * 0.62
+    return {
+      boundaries: boundaryAngles.map((angle) => ({
+        x2: roi.center.x + roi.platformRadius * Math.cos(angle),
+        y2: roi.center.y + roi.platformRadius * Math.sin(angle),
+      })),
+      labels: labelAngles.map((angle, i) => ({
+        x: roi.center.x + labelRadius * Math.cos(angle),
+        y: roi.center.y + labelRadius * Math.sin(angle),
+        text: String(i + 1),
+      })),
+    }
+  }, [roi])
+
   // Offset half a slot from hole 0 rather than sitting on `rotation` exactly:
   // hole 0 is generated at that same angle, so a handle placed there is
   // painted over by the hole and never receives a pointer event. Halfway
@@ -543,6 +566,29 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                       </g>
                     )
                   })}
+
+                  {/* Quadrant legend: shows which physical area step 5's
+                      "Quadrant 1-4" cards refer to, for this video's own
+                      target -- see measures.ts's quadrantFor. */}
+                  {quadrantLegend && (
+                    <g className="roi-quadrant-legend">
+                      {quadrantLegend.boundaries.map((b, i) => (
+                        <line
+                          key={i}
+                          x1={roi!.center.x}
+                          y1={roi!.center.y}
+                          x2={b.x2}
+                          y2={b.y2}
+                          className="roi-quadrant-line"
+                        />
+                      ))}
+                      {quadrantLegend.labels.map((l, i) => (
+                        <text key={i} x={l.x} y={l.y} className="roi-quadrant-label">
+                          {l.text}
+                        </text>
+                      ))}
+                    </g>
+                  )}
 
                   {/* Scale bar: makes the cm calibration visible on the image
                       instead of only as a number in the sidebar. */}

@@ -10,6 +10,7 @@ import VideoLoader from './VideoLoader.tsx'
 import RoiEditor from './RoiEditor.tsx'
 import TrackingPanel from './TrackingPanel.tsx'
 import ReviewWorkspace from './ReviewWorkspace.tsx'
+import ExportPanel from './ExportPanel.tsx'
 import { useTrackingJob } from './useTrackingJob.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import type { RoiDefinition } from '../core/roi.ts'
@@ -20,7 +21,10 @@ type Milestone = {
 }
 
 const REMAINING: readonly Milestone[] = [
-  { step: 'Visualize and export CSV / XLSX', status: 'not built yet' },
+  {
+    step: 'Richer visualizations (heatmaps, hole-visit rasters, learning curves, cohort comparisons)',
+    status: 'not built yet',
+  },
 ]
 
 export default function App() {
@@ -68,9 +72,11 @@ export default function App() {
         </>
       )}
 
+      <ExportPanel trackingRefreshToken={trackingJob.completedCount} />
+
       <section aria-labelledby="remaining-heading">
         <h2 id="remaining-heading" className="step-heading">Remaining steps</h2>
-        <ol className="milestones" start={5}>
+        <ol className="milestones" start={6}>
           {REMAINING.map((milestone) => (
             <li key={milestone.step}>
               <span>{milestone.step}</span>

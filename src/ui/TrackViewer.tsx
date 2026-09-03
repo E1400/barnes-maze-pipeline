@@ -127,6 +127,15 @@ export default function TrackViewer({ video, roi, review }: Props) {
           <circle cx={roi.center.x} cy={roi.center.y} r={roi.platformRadius} className="roi-platform" />
           {roi.holes.map((hole, i) => {
             const isTarget = roi.targetHole === i
+            // Label sits outside the ring, along the line from the platform
+            // centre through the hole, so it never covers the hole itself or
+            // the animal passing through it (Elvis's feedback, 2026-09-03).
+            const dx = hole.x - roi.center.x
+            const dy = hole.y - roi.center.y
+            const len = Math.hypot(dx, dy) || 1
+            const labelOffset = roi.holeRadius + 12
+            const labelX = hole.x + (dx / len) * labelOffset
+            const labelY = hole.y + (dy / len) * labelOffset
             return (
               <g key={i}>
                 <circle
@@ -143,6 +152,9 @@ export default function TrackViewer({ video, roi, review }: Props) {
                     className="roi-hole--target-ring"
                   />
                 )}
+                <text x={labelX} y={labelY + 4} className="roi-hole-label roi-hole-label--outside">
+                  {isTarget ? 'T' : i + 1}
+                </text>
               </g>
             )
           })}

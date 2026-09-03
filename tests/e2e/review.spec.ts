@@ -181,7 +181,7 @@ test('a jump button moves the shared viewer to that investigation', async ({ pag
 
   const range = section.locator('.scrubber-range')
   const before = await range.inputValue()
-  await section.locator('.investigation-table tbody tr').first().getByRole('button', { name: 'Jump' }).click()
+  await section.locator('.investigation-table tbody tr').first().getByRole('button', { name: 'View' }).click()
   await expect(range).not.toHaveValue(before)
 })
 

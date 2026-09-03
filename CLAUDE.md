@@ -586,6 +586,55 @@ just change code silently, when a decision changes.
   border, `--surface` background) instead of just being a bigger font.
   Applied to all four real steps plus the "Remaining steps" placeholder, for
   one consistent rhythm down the page.
+- **Investigation rows are grouped into "visits" (2026-09-03),
+  `groupConsecutiveInvestigations` in `core/investigationEdits.ts`.**
+  Consecutive rows at the same hole (in start-frame order, no other hole
+  in between) share a visit number — the investigation table's new "Visit"
+  column, and the same grouping `searchStrategy.ts` now uses instead of the
+  raw per-row list. This mattered more than expected: every trial was
+  classifying as "random" because five consecutive "nose came close" rows
+  at one hole read as five noisy zero-length angular steps, drowning the
+  real order signal. After grouping, `test50` (a long, methodical ring
+  walk) correctly comes out **serial** (92% of hole-to-hole transitions
+  continuing one direction across 25 visits), while `test51`/`test53` stay
+  **random** but with genuinely different reasoning (11% vs. 54% path
+  efficiency, 6 vs. 2 visits) — confirmed against all three real clips
+  before calling it fixed, not assumed from the grouping logic alone.
+- **Errors count distinct holes, not investigation events (2026-09-03),
+  `measures.ts` and `searchStrategy.ts`.** Five consecutive rows at the same
+  hole used to count as five errors; a reviewer would count it as one wrong
+  hole. `primaryErrors`/`totalErrors` and the search classifier's
+  `errorsBeforeCutoff` all now count `new Set(...map(holeIndex)).size`.
+- **Quadrants renumbered 1-4, with a legend (2026-09-03).** Still oriented
+  on the target (quadrant 1 = target's own quadrant, 2/3/4 step 90° clockwise
+  from there) — the scientifically meaningful comparison is unchanged, only
+  the labels simplified from "Target/Opposite/Adjacent CW/CCW" to
+  "Quadrant 1-4". A dashed-line legend (`RoiEditor.tsx`, drawn once a target
+  is marked) shows which physical area is 1-4 for that specific video's own
+  target, since the numbering has no meaning without it.
+- **Hole numbers labelled outside the ring in the review workspace
+  (2026-09-03), `TrackViewer.tsx`.** Same numbering as step 2, but placed
+  along the line from the platform centre through each hole, offset past
+  the hole's own radius, so a label never sits on top of a hole or the
+  animal passing through it.
+- **CSV/XLSX export (2026-09-03), `src/io/`.** `exportRows.ts` is pure
+  row-building (one `TrialRow` per tracked video, one `InvestigationRow` per
+  investigation visit — reuses the same grouping as the table) and is
+  unit-tested without touching SheetJS; `sheets.ts` is a thin, untested
+  wrapper that turns those rows into an actual CSV or XLSX download via
+  SheetJS (`xlsx` on npm), verified directly in the browser (captured a real
+  download and read its content back) rather than unit-tested. `ExportPanel`
+  recomputes every tracked video's measures/investigations/search-strategy
+  from scratch on load — corrections, investigation edits, and measure
+  overrides all applied — the same pipeline the review workspace uses, so
+  there's no separately cached export snapshot that could go stale. Every
+  row carries the tool version and the investigation threshold used, per the
+  brief. Note: `xlsx` roughly doubled the production bundle size (~290KB to
+  ~730KB gzipped ~120KB to ~220KB) — not code-split, since this is a small
+  static tool and the brief doesn't ask for a lean bundle, but worth knowing
+  if that changes. "Richer" visualizations (heatmaps, hole-visit rasters,
+  learning curves, cohort comparisons) are still open — see "Remaining
+  steps" in the app itself.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   the global investigation threshold, manual investigation edits, manual
   measure overrides, the global default platform diameter) — a refresh must

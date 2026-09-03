@@ -679,3 +679,30 @@ that "looks right" and matches conventional advice still isn't verified
 until it's measured -- same standing rule this file already applies to
 application logic, worth restating for CSS specifically since it's easy to
 treat as lower-stakes.
+
+**Investigation grouping, unique-hole errors, quadrant relabeling, hole
+labels, and CSV/XLSX export (this branch).** Elvis pointed at a real
+symptom -- `test53` (short, few investigations) got the same "random"
+search-strategy label as `test50` (long, scattered) -- without knowing the
+mechanism. Root cause, found before touching the classifier: raw
+consecutive "nose came close" rows at the same hole were feeding the
+order-score calculation as separate zero-length angular steps, drowning any
+real signal. Fixed by grouping consecutive same-hole rows into one "visit"
+(the same grouping now also drives the investigation table's new column and
+the unique-hole error count). Verified against all three real clips, not
+assumed from the logic alone: `test50` now correctly classifies **serial**
+(92% order consistency across 25 visits -- it really is a methodical ring
+walk), `test51`/`test53` stay **random** but with clearly different
+reasoning now visible (11% vs. 54% path efficiency, 6 vs. 2 visits) -- the
+label collision is gone where it was wrong, and the two "random" trials are
+now distinguishable by their own stated reasoning where the label
+genuinely is the same (neither found the target directly nor searched in
+order, which is what "random" means in this framework).
+
+Per this session's own new standing instruction (verification was consuming
+too much of the budget): batched what would have been ~5 separate
+browser-verification passes into 3, and skipped a from-scratch multi-video
+export test in favor of trusting the loop logic once the single-video case
+was confirmed end-to-end (real download captured, CSV content read back and
+checked against the on-screen numbers) -- a judgment call to make the
+verification proportionate to the risk, not skip it.

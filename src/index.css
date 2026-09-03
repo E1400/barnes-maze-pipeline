@@ -457,6 +457,10 @@ a {
   pointer-events: none;
 }
 
+.roi-hole-label--outside {
+  font-size: 11px;
+}
+
 .roi-stage {
   flex: 1 1 25rem;
   min-width: 18rem;
@@ -506,6 +510,25 @@ a {
   paint-order: stroke;
   stroke: #000000;
   stroke-width: 3px;
+}
+
+.roi-quadrant-line {
+  stroke: #7db4f0;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.roi-quadrant-label {
+  fill: #7db4f0;
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #000000;
+  stroke-width: 3px;
+  pointer-events: none;
 }
 
 .measures {

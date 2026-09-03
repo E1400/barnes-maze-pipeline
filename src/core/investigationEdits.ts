@@ -100,3 +100,26 @@ export function updateManualInvestigation(
 export function deleteManualInvestigation(edits: InvestigationEdits, id: string): InvestigationEdits {
   return { ...edits, manual: edits.manual.filter((m) => m.id !== id) }
 }
+
+export interface GroupedInvestigation extends EffectiveInvestigation {
+  /** 1-indexed. Consecutive rows at the same hole (in start-frame order, no other hole visited in between) share a group. */
+  readonly group: number
+}
+
+/**
+ * Coarser granularity than the raw per-row list: five consecutive "nose came
+ * close" rows at hole 2 followed by three at hole 10 are two investigations
+ * (a visit to 2, then a visit to 10), not eight. Investigations must already
+ * be in start-frame order (as `applyInvestigationEdits` returns them).
+ */
+export function groupConsecutiveInvestigations(
+  investigations: readonly EffectiveInvestigation[],
+): readonly GroupedInvestigation[] {
+  let group = 0
+  let previousHole: number | null = null
+  return investigations.map((investigation) => {
+    if (investigation.holeIndex !== previousHole) group++
+    previousHole = investigation.holeIndex
+    return { ...investigation, group }
+  })
+}

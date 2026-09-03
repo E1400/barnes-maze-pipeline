@@ -5,6 +5,7 @@ import {
   applyInvestigationEdits,
   autoInvestigationId,
   deleteManualInvestigation,
+  groupConsecutiveInvestigations,
   removeAutoInvestigation,
   updateManualInvestigation,
 } from './investigationEdits.ts'
@@ -93,5 +94,27 @@ describe('applyInvestigationEdits', () => {
     edits = addManualInvestigation(edits, { id: 'm1', holeIndex: 2, startFrame: 30, endFrame: 32 })
     const effective = applyInvestigationEdits(list, edits, null)
     expect(effective.map((e) => `${e.source}:${e.holeIndex}`)).toEqual(['auto:1', 'manual:2'])
+  })
+})
+
+describe('groupConsecutiveInvestigations', () => {
+  it('gives consecutive rows at the same hole one group number', () => {
+    const list = [auto(2, 0, 5), auto(2, 10, 15), auto(2, 20, 25), auto(10, 30, 35), auto(10, 40, 45)]
+    const effective = applyInvestigationEdits(list, EMPTY_INVESTIGATION_EDITS, null)
+    const grouped = groupConsecutiveInvestigations(effective)
+    expect(grouped.map((g) => g.group)).toEqual([1, 1, 1, 2, 2])
+  })
+
+  it('starts a new group when the same hole reappears after a different hole', () => {
+    const list = [auto(2, 0, 5), auto(10, 10, 15), auto(2, 20, 25)]
+    const effective = applyInvestigationEdits(list, EMPTY_INVESTIGATION_EDITS, null)
+    const grouped = groupConsecutiveInvestigations(effective)
+    expect(grouped.map((g) => g.group)).toEqual([1, 2, 3])
+  })
+
+  it('handles a single investigation and an empty list', () => {
+    expect(groupConsecutiveInvestigations([]).map((g) => g.group)).toEqual([])
+    const single = applyInvestigationEdits([auto(0, 0, 5)], EMPTY_INVESTIGATION_EDITS, null)
+    expect(groupConsecutiveInvestigations(single).map((g) => g.group)).toEqual([1])
   })
 })
