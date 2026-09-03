@@ -98,7 +98,17 @@ export class Tracker {
   private readonly roi: HoleRoi
   private readonly params: TrackerParams
   private readonly recentAreas: number[] = []
-  private previousCentroid: Point | null = null
+  /**
+   * A short window of recent centroids, used only to estimate the direction
+   * of travel for nose assignment. A single frame-to-frame delta is too
+   * noisy to use directly: real per-frame position jitter (pixel
+   * quantisation, minor detection noise) can flip its sign even when the
+   * animal's true motion hasn't changed, which flips the nose to the tail
+   * for a frame and back. Comparing against a point several frames back
+   * instead averages the noise out while still tracking a genuine direction
+   * change within a few frames' lag.
+   */
+  private readonly recentCentroidsForNose: Point[] = []
   private previousNose: Point | null = null
   private lastTrackedCentroid: Point | null = null
   private readonly records: FrameTrack[] = []
@@ -133,7 +143,12 @@ export class Tracker {
 
     this.recentAreas.push(detection.area)
     if (this.recentAreas.length > this.params.shrinkWindowFrames) this.recentAreas.shift()
-    this.previousCentroid = centroid
+    // Pushed after assignNose reads it, so the window used for direction
+    // never includes the frame it's currently being computed for.
+    this.recentCentroidsForNose.push(centroid)
+    if (this.recentCentroidsForNose.length > Tracker.NOSE_DIRECTION_WINDOW) {
+      this.recentCentroidsForNose.shift()
+    }
     this.previousNose = nose
     this.lastTrackedCentroid = centroid
     this.currentVanishAttribution = null // any vanish streak has ended
@@ -171,7 +186,7 @@ export class Tracker {
         holeIndex: isHoleEntry ? attribution!.index : null,
       }
       this.recentAreas.length = 0
-      this.previousCentroid = null
+      this.recentCentroidsForNose.length = 0
       // Nose identity resets on any vanish; there's no continuity to preserve
       // across an occlusion or a lost stretch.
       this.previousNose = null
@@ -187,12 +202,20 @@ export class Tracker {
     }
   }
 
+  /** How many recent frames the direction-of-travel estimate is averaged over. */
+  private static readonly NOSE_DIRECTION_WINDOW = 5
+
   /**
    * Picks the leading axis endpoint as the nose: whichever end lies further
-   * along the direction the body is currently moving. Falls back to
-   * continuity with the previous nose (whichever endpoint moved least) when
-   * velocity is too small to be informative, so the nose doesn't flicker
-   * between the two ends while the animal is nearly stationary.
+   * along the direction the body has been moving, estimated from a short
+   * window of recent centroids rather than the single previous frame -- a
+   * one-frame delta is dominated by per-frame position noise (pixel
+   * quantisation, minor detection jitter) and can flip sign even when the
+   * animal's real motion hasn't changed, which used to flip the nose to the
+   * tail for a frame and back. Falls back to continuity with the previous
+   * nose (whichever endpoint moved least) when the averaged direction is
+   * still too small to be informative, so the nose doesn't flicker between
+   * the two ends while the animal is nearly stationary.
    */
   private assignNose(
     centroid: Point,
@@ -201,14 +224,18 @@ export class Tracker {
     if (!axisEnds) return null
     const [a, b] = axisEnds
 
-    if (this.previousCentroid) {
-      const velocity = { x: centroid.x - this.previousCentroid.x, y: centroid.y - this.previousCentroid.y }
-      const speed = Math.hypot(velocity.x, velocity.y)
+    const baseline = this.recentCentroidsForNose[0]
+    if (baseline) {
+      const framesSpanned = this.recentCentroidsForNose.length
+      const displacement = { x: centroid.x - baseline.x, y: centroid.y - baseline.y }
+      // Normalised back to px/frame so the threshold below means the same
+      // thing regardless of how many frames the window currently spans.
+      const speed = Math.hypot(displacement.x, displacement.y) / framesSpanned
       // Below this the direction estimate is mostly noise.
       const MIN_INFORMATIVE_SPEED = 0.5
       if (speed >= MIN_INFORMATIVE_SPEED) {
-        const dotA = (a.x - centroid.x) * velocity.x + (a.y - centroid.y) * velocity.y
-        const dotB = (b.x - centroid.x) * velocity.x + (b.y - centroid.y) * velocity.y
+        const dotA = (a.x - centroid.x) * displacement.x + (a.y - centroid.y) * displacement.y
+        const dotB = (b.x - centroid.x) * displacement.x + (b.y - centroid.y) * displacement.y
         return dotA >= dotB ? a : b
       }
     }

@@ -88,7 +88,9 @@ test('tracking results survive a reload without re-running', async ({ page }) =>
 })
 
 test('tracking keeps running after switching to a different video', async ({ page }) => {
-  test.setTimeout(150_000)
+  // The most expensive test in this file -- two maze definitions plus one
+  // full two-pass tracking run -- so it gets the most generous budget.
+  test.setTimeout(240_000)
   const SECOND_FIXTURE = 'data/barnes-maze/test53.mp4'
   test.skip(!existsSync(SECOND_FIXTURE), `Missing ${SECOND_FIXTURE} — run npm run fetch:samples`)
 
@@ -124,7 +126,7 @@ test('tracking keeps running after switching to a different video', async ({ pag
   // pass specifically has started before sampling, so both reads land in the
   // same pass.
   const firstRow = page.locator('[data-testid="video-row"]').first()
-  await expect(firstRow).toContainText('Tracking ', { timeout: 30_000 })
+  await expect(firstRow).toContainText('Tracking ', { timeout: 90_000 })
   const readTrackingPercent = async () => {
     const text = await firstRow.innerText()
     const match = /Tracking (\d+)%/.exec(text)

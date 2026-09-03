@@ -18,7 +18,7 @@ import type { Point } from '../core/geometry.ts'
 import type { RoiDefinition } from '../core/roi.ts'
 import type { FrameTrack } from '../core/tracking.ts'
 import { loadCorrections, saveCorrections } from '../state/correctionStore.ts'
-import { loadRoi, saveRoi } from '../state/roiStore.ts'
+import { loadRoi, updatePins } from '../state/roiStore.ts'
 import type { StoredVideoSummary } from '../state/schema.ts'
 import { loadTracks } from '../state/trackStore.ts'
 import { getVideo } from '../state/videoStore.ts'
@@ -147,10 +147,12 @@ export default function CorrectionViewer({ video, roi, trackingJob }: Props) {
     return () => clearTimeout(timer)
   }, [corrections, video.id])
 
+  // Pins-only: never re-supplies `roi` (a prop from a shared ancestor, and
+  // briefly stale right after switching videos -- see updatePins' docstring
+  // for why writing roi here would be a real, demonstrated bug).
   useEffect(() => {
-    if (!roi) return
-    void saveRoi(video.id, roi, pins)
-  }, [pins, roi, video.id])
+    void updatePins(video.id, pins)
+  }, [pins, video.id])
 
   const pointFromEvent = useCallback((event: { clientX: number; clientY: number }): Point | null => {
     const svg = svgRef.current

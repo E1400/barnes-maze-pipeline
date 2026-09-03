@@ -239,13 +239,26 @@ a {
   align-items: flex-start;
 }
 
+.roi-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 0.5rem;
+}
+
 .roi-canvas {
-  max-width: 100%;
+  display: block;
+  max-width: 22rem;
   height: auto;
   border: 1px solid var(--border);
   border-radius: 0.25rem;
   cursor: crosshair;
   touch-action: manipulation;
+}
+
+.roi-canvas--expanded {
+  max-width: 100%;
 }
 
 .roi-canvas:focus-visible {
@@ -371,7 +384,7 @@ a {
   fill: #ffffff;
   stroke: #000000;
   stroke-width: 2;
-  cursor: grab;
+  cursor: crosshair;
 }
 
 .roi-handle:hover {
@@ -379,7 +392,7 @@ a {
 }
 
 .roi-center-handle {
-  cursor: move;
+  cursor: crosshair;
 }
 
 .roi-center-hit {
@@ -393,7 +406,7 @@ a {
 }
 
 .roi-hole {
-  cursor: grab;
+  cursor: crosshair;
 }
 
 .roi-scalebar-line {
@@ -602,7 +615,7 @@ a {
   height: auto;
   border: 1px solid var(--border);
   border-radius: 0.25rem;
-  cursor: pointer;
+  cursor: crosshair;
   touch-action: manipulation;
 }
 
@@ -620,7 +633,7 @@ a {
   fill: #2fae4e;
   stroke: #000000;
   stroke-width: 1.5;
-  cursor: grab;
+  cursor: crosshair;
 }
 
 .correction-point--nose {

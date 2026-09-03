@@ -83,6 +83,7 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
   const [templateName, setTemplateName] = useState<string | null>(null)
   const [saveCount, setSaveCount] = useState(0)
   const [drag, setDrag] = useState<DragTarget | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const dragOrigin = useRef<Point | null>(null)
 
@@ -406,10 +407,17 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
 
       <div className="roi-layout">
         <div className="roi-stage">
+          {frameUrl && (
+            <div className="roi-toolbar">
+              <button type="button" onClick={() => setExpanded((e) => !e)}>
+                {expanded ? 'Shrink viewer' : 'Expand viewer'}
+              </button>
+            </div>
+          )}
           {frameUrl ? (
             <svg
               ref={svgRef}
-              className="roi-canvas"
+              className={`roi-canvas${expanded ? ' roi-canvas--expanded' : ''}`}
               viewBox={`0 0 ${width} ${height}`}
               width={width}
               height={height}

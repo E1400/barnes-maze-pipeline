@@ -168,6 +168,35 @@ describe('Tracker: nose assignment', () => {
     const record = tracker.push(4, found({ centroid: { x: 100, y: 100 }, axisEnds }))
     expect(record.nose).toEqual({ x: 90, y: 100 })
   })
+
+  it('does not flip on a single noisy frame during otherwise steady motion', () => {
+    // Steady +x motion, 2px/frame, for five frames -- fills the direction
+    // window. Frame 5 has a 1px *backward* blip (single-frame delta = -1,
+    // which would cross the old single-frame threshold and flip the nose to
+    // the other end). Averaged over the 5-frame window, the animal is still
+    // unambiguously moving +x, so the nose must not flip on this one frame.
+    const tracker = new Tracker(roi())
+    const xs = [100, 102, 104, 106, 108, 107]
+    let record = tracker.push(0, found({ centroid: { x: xs[0], y: 100 }, axisEnds }))
+    for (let i = 1; i < xs.length; i++) {
+      record = tracker.push(i, found({ centroid: { x: xs[i], y: 100 }, axisEnds }))
+    }
+    expect(record.nose).toEqual({ x: 110, y: 100 }) // still the +x-leading end
+  })
+
+  it('still flips the nose once a reversal is sustained, not just noisy', () => {
+    // Same steady +x run as above, but the reversal continues for enough
+    // frames to actually flush the forward motion out of the direction
+    // window -- this has to still work, or the noise fix would have traded
+    // jitter-resistance for never responding to a real turn-around.
+    const tracker = new Tracker(roi())
+    const xs = [100, 102, 104, 106, 108, 106, 104, 102, 100, 98, 96]
+    let record = tracker.push(0, found({ centroid: { x: xs[0], y: 100 }, axisEnds }))
+    for (let i = 1; i < xs.length; i++) {
+      record = tracker.push(i, found({ centroid: { x: xs[i], y: 100 }, axisEnds }))
+    }
+    expect(record.nose).toEqual({ x: 90, y: 100 }) // now the -x-leading end
+  })
 })
 
 describe('Tracker.finalize: escape box promotion', () => {

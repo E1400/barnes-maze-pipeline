@@ -199,7 +199,37 @@ was wrong about it, what the tell was, how you caught it.
     browser rather than trusting the typecheck, which had nothing to say
     about it. Fixed by switching to state, matching RoiEditor exactly.
 
-13. <!-- next real one goes here -->
+13. **A sibling component silently overwrote one video's saved maze layout with another's.**
+    Elvis reported that switching between videos sometimes shifted the maze
+    overlay completely off the platform, self-correcting on a manual
+    re-detect and then shifting again on the next navigation. Traced with
+    live console tracing (not guessed): `CorrectionViewer`'s pin-toggle
+    effect saved `{ videoId: video.id, roi, pins }` using `roi` as a *prop*
+    from `App`, and `App` only resets that prop to `null` once `RoiEditor`'s
+    own fresh-mount effect runs and propagates it back up. Both components
+    remount in the same commit when the selected video changes, so on the
+    very first render of the *new* video, `CorrectionViewer` receives the
+    *previous* video's `roi` for one render before the reset arrives -- and
+    its pins effect, which runs on every mount regardless, dutifully wrote
+    that stale ROI to IndexedDB under the new video's id. Confirmed at the
+    storage layer before touching any code: dumped the `rois` object store
+    directly and found `test53`'s stored record held `test51`'s coordinates,
+    written 1.2s after test51's own save, on `test53`'s very first-ever
+    selection -- proof the write, not just the display, was wrong. The fix
+    is structural, not a guard: `CorrectionViewer` never needed `roi` to
+    persist a pin toggle in the first place, so `updatePins()` does a
+    read-modify-write inside IndexedDB that only ever touches `pins`, using
+    whatever ROI is *actually* stored rather than a value handed down
+    through props. Verified by bouncing between two videos three times after
+    the fix, reading both the DOM and IndexedDB directly at each step; both
+    videos held their own distinct, correct coordinates throughout.
+    Generalizes: a prop passed down from a shared ancestor is a *view* of
+    that ancestor's state, with real propagation delay across a remount --
+    treating it as an unconditionally-fresh value to write back to storage
+    is the specific mistake, not React or the component structure in
+    general.
+
+14. <!-- next real one goes here -->
 
 ## Where the human overrode the model
 
@@ -392,3 +422,17 @@ CV pipelines in parallel across 4 workers) surfaced real CPU contention that
 a 90s wait didn't budget for on a slower run; brought it in line with the
 120s margin the tracking tests already used successfully under the same
 load, rather than just re-running until it happened to pass.
+
+**Post-milestone bug fixes from real usage (this branch, continued).**
+Four items from Elvis actually using the correction viewer. Two were
+diagnosed by adding real console tracing to the running app and reading it
+back from a live browser rather than reasoning from code alone -- the
+cross-video ROI leak (mistake 13) looked, from reading the code, like it
+should have been impossible; it wasn't, and the trace proved exactly which
+effect and which render did it. The nose-jitter fix was verified with a test
+that computes the *old* algorithm's answer by hand (dotA=17 vs dotB=-3, which
+would have flipped the nose) and asserts the new one gives the opposite,
+correct result -- not just "the new tests pass," which would pass just as
+well for a fix that changed nothing. The cursor and expand-viewer changes
+are small enough that manual verification (measuring rendered width before
+and after the toggle, 352px -> 520px) was sufficient.

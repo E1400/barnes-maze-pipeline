@@ -189,7 +189,36 @@ just change code silently, when a decision changes.
   (`max-width: 22rem`) with an "Expand viewer" toggle up to its native
   640px — not a fullscreen/modal experience, which wasn't asked for and adds
   real complexity (portals, escape-key handling, focus trapping) this pass
-  didn't need.
+  didn't need. The ROI editor (step 2) got the same expand toggle for
+  consistency, on the same request.
+- **Pins are updated separately from ROI (`updatePins()` in
+  `src/state/roiStore.ts`), never as a side effect of saving ROI geometry.**
+  `CorrectionViewer` and `RoiEditor` both have their own pin toggle on the
+  same per-video pin list, but only `RoiEditor` owns ROI editing — its `roi`
+  reaches `CorrectionViewer` as a prop from `App`, and that prop is briefly
+  stale (the previous video's value) for one render immediately after
+  switching videos, before `RoiEditor`'s own reset propagates back up. A
+  pins-save that also wrote `roi` from that prop was a real, demonstrated
+  bug: switching videos could silently overwrite a video's correct, already-
+  detected ROI with a *different* video's coordinates (AI_NOTES mistake 13).
+  `updatePins()` does a read-modify-write inside one IndexedDB transaction
+  that only ever touches `pins`, using whatever ROI is actually persisted —
+  structurally impossible for a stale prop to reach storage through it,
+  rather than a guard that has to be remembered to keep working.
+- **Nose direction is smoothed over `Tracker.NOSE_DIRECTION_WINDOW` (5)
+  frames, not the single previous frame** (`src/core/tracking.ts`). A
+  one-frame centroid delta is dominated by per-frame position noise and can
+  flip sign even when the animal's real motion hasn't changed, which used to
+  flip the nose to the tail for a frame and back — reported by Elvis while
+  reviewing tracked footage. Comparing against a point several frames back
+  averages that out while still responding to a genuine direction reversal
+  within a few frames. **Not yet consequential for classification** — no
+  code path uses `nose` for anything but display and manual correction;
+  `OCCLUDED_IN_HOLE`/`IN_ESCAPE_BOX` are driven entirely by centroid
+  proximity and area shrinkage — but worth having fixed now, since the
+  deferred investigation-detection feature (see above) will likely want a
+  stable nose position, and jitter undermines trust when reviewing a track
+  regardless.
 - **Two full decode passes per video** (`src/core/cv/pipeline.ts`): one to
   build the background model from ~30 frames spread across the whole clip,
   one to run detection/tracking on every frame. The background model needs
