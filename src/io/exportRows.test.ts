@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildInvestigationRows, buildTrialRow } from './exportRows.ts'
+import { buildInvestigationRows, buildQualityRow, buildTrialRow } from './exportRows.ts'
 import { DEFAULT_INVESTIGATION_PARAMS } from '../core/events.ts'
 import type { EffectiveInvestigation } from '../core/investigationEdits.ts'
 import type { TrialMeasures } from '../core/measures.ts'
 import type { RoiDefinition } from '../core/roi.ts'
 import { buildTimebase } from '../core/timebase.ts'
+import type { FrameTrack, TrackState } from '../core/tracking.ts'
 
 const TIMEBASE = buildTimebase(30, [{ count: 10, delta: 1 }])
 
@@ -88,5 +89,58 @@ describe('buildInvestigationRows', () => {
 
   it('returns an empty list for no investigations', () => {
     expect(buildInvestigationRows('t.mp4', TIMEBASE, [])).toEqual([])
+  })
+})
+
+function frame(frameIndex: number, state: TrackState): FrameTrack {
+  return { frameIndex, state, centroid: null, nose: null, area: 0, holeIndex: null }
+}
+
+describe('buildQualityRow', () => {
+  it('tallies each state as a count and a percent of total frames', () => {
+    const tracks = [
+      frame(0, 'LOST'),
+      frame(1, 'TRACKED'),
+      frame(2, 'TRACKED'),
+      frame(3, 'OCCLUDED_IN_HOLE'),
+      frame(4, 'IN_ESCAPE_BOX'),
+    ]
+    const row = buildQualityRow('test51.mp4', TIMEBASE, tracks)
+    expect(row.frameCount).toBe(5)
+    expect(row.trackedFrames).toBe(2)
+    expect(row.trackedPercent).toBe(40)
+    expect(row.lostFrames).toBe(1)
+    expect(row.lostPercent).toBe(20)
+    expect(row.occludedInHoleFrames).toBe(1)
+    expect(row.inEscapeBoxFrames).toBe(1)
+    expect(row.toolVersion).toMatch(/barnes-maze-pipeline/)
+  })
+
+  it('finds the single longest LOST run, not just a total LOST count, and reports where it starts', () => {
+    const tracks = [
+      frame(0, 'LOST'),
+      frame(1, 'TRACKED'),
+      frame(2, 'LOST'),
+      frame(3, 'LOST'),
+      frame(4, 'LOST'),
+      frame(5, 'TRACKED'),
+    ]
+    const row = buildQualityRow('test51.mp4', TIMEBASE, tracks)
+    expect(row.lostFrames).toBe(4) // 1 + 3, two separate runs
+    expect(row.longestLostRunFrames).toBe(3) // the run at frames 2-4, not the lone frame 0
+    expect(row.longestLostRunStartSeconds).toBeCloseTo(2 / 30, 2)
+  })
+
+  it('reports no LOST run and a null start when every frame tracked cleanly', () => {
+    const row = buildQualityRow('t.mp4', TIMEBASE, [frame(0, 'TRACKED'), frame(1, 'TRACKED')])
+    expect(row.longestLostRunFrames).toBe(0)
+    expect(row.longestLostRunStartSeconds).toBeNull()
+  })
+
+  it('handles an empty track list without dividing by zero', () => {
+    const row = buildQualityRow('t.mp4', TIMEBASE, [])
+    expect(row.frameCount).toBe(0)
+    expect(row.trackedPercent).toBe(0)
+    expect(row.longestLostRunStartSeconds).toBeNull()
   })
 })

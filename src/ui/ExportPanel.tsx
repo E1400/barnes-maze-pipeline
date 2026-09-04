@@ -10,8 +10,8 @@
  * unclear which a download actually contained.
  */
 
-import { buildInvestigationRows, buildTrialRow, type InvestigationRow, type TrialRow } from '../io/exportRows.ts'
-import { downloadInvestigationsCsv, downloadTrialsCsv, downloadWorkbook } from '../io/sheets.ts'
+import { buildInvestigationRows, buildQualityRow, buildTrialRow, type InvestigationRow, type QualityRow, type TrialRow } from '../io/exportRows.ts'
+import { downloadInvestigationsCsv, downloadQualityCsv, downloadTrialsCsv, downloadWorkbook } from '../io/sheets.ts'
 import { useCohortData } from './useCohortData.ts'
 
 interface Props {
@@ -24,6 +24,7 @@ interface VideoExport {
   readonly videoName: string
   readonly trial: TrialRow
   readonly investigations: readonly InvestigationRow[]
+  readonly quality: QualityRow
 }
 
 function timestamp(): string {
@@ -43,10 +44,12 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
     videoName: v.video.name,
     trial: buildTrialRow(v.video.name, v.video.timebase, v.roi, v.measures, v.strategy, v.investigationParams),
     investigations: buildInvestigationRows(v.video.name, v.video.timebase, v.investigations),
+    quality: buildQualityRow(v.video.name, v.video.timebase, v.effective),
   }))
 
   const allTrials = videos.map((v) => v.trial)
   const allInvestigations = videos.flatMap((v) => v.investigations)
+  const allQuality = videos.map((v) => v.quality)
 
   return (
     <section aria-labelledby="export-heading" className="export-panel">
@@ -54,9 +57,10 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
         5. Export
       </h2>
       <p className="hint">
-        One row per tracked video, plus one row per hole-investigation event. Both formats embed
-        the detection threshold and the tool version used, so an exported number can be traced
-        back to the settings that produced it.
+        Trials (one row per video), investigations (one row per hole visit), and a quality report
+        (what fraction of each video tracked cleanly). Every format embeds the detection threshold
+        and the tool version used, so an exported number can be traced back to the settings that
+        produced it.
       </p>
 
       {loading ? (
@@ -88,11 +92,18 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
               </button>
               <button
                 type="button"
+                title="What fraction of each video tracked cleanly, and where the failures cluster -- so the numbers above can be trusted before they go in a figure."
+                onClick={() => downloadQualityCsv(allQuality, `barnes-maze-quality-${timestamp()}.csv`)}
+              >
+                Download quality report (CSV)
+              </button>
+              <button
+                type="button"
                 onClick={() =>
-                  downloadWorkbook(allTrials, allInvestigations, `barnes-maze-export-${timestamp()}.xlsx`)
+                  downloadWorkbook(allTrials, allInvestigations, allQuality, `barnes-maze-export-${timestamp()}.xlsx`)
                 }
               >
-                Download XLSX (both sheets)
+                Download XLSX (all sheets)
               </button>
             </div>
           </div>
@@ -132,7 +143,7 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
                       <button
                         type="button"
                         onClick={() =>
-                          downloadWorkbook([v.trial], v.investigations, `${fileStem(v.videoName)}.xlsx`)
+                          downloadWorkbook([v.trial], v.investigations, [v.quality], `${fileStem(v.videoName)}.xlsx`)
                         }
                       >
                         XLSX

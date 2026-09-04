@@ -10,7 +10,8 @@ import { groupConsecutiveInvestigations } from '../core/investigationEdits.ts'
 import type { InvestigationParams } from '../core/events.ts'
 import type { TrialMeasures } from '../core/measures.ts'
 import type { RoiDefinition } from '../core/roi.ts'
-import { formatFps, type Timebase } from '../core/timebase.ts'
+import { formatFps, frameTimeSeconds, type Timebase } from '../core/timebase.ts'
+import type { FrameTrack } from '../core/tracking.ts'
 import { toolIdentifier } from '../core/version.ts'
 
 export interface TrialRow {
@@ -79,6 +80,75 @@ export function buildTrialRow(
     searchStrategyReasoning: strategy?.reasoning ?? null,
     investigationRadiusFactor: investigationParams.proximityRadiusFactor,
     investigationMinFrames: investigationParams.minFrames,
+    toolVersion: toolIdentifier(),
+  }
+}
+
+export interface QualityRow {
+  readonly video: string
+  readonly frameCount: number
+  readonly trackedFrames: number
+  readonly trackedPercent: number
+  readonly lostFrames: number
+  readonly lostPercent: number
+  readonly occludedInHoleFrames: number
+  readonly occludedInHolePercent: number
+  readonly inEscapeBoxFrames: number
+  readonly inEscapeBoxPercent: number
+  /** The single longest unbroken run of LOST frames -- "where the failures cluster," per the brief, not just how many there are. Most often the clip's opening, before the animal is placed on the platform. */
+  readonly longestLostRunFrames: number
+  readonly longestLostRunStartSeconds: number | null
+  readonly toolVersion: string
+}
+
+function percent(count: number, total: number): number {
+  return total === 0 ? 0 : Number(((count / total) * 100).toFixed(1))
+}
+
+/**
+ * "A quality report per video (what fraction of frames tracked, where the
+ * failures cluster) so the user knows whether to trust the output before
+ * they build a figure on it" -- the brief's own words. `frame.state` is
+ * never guessed at, so this is a straight tally of what the tracker itself
+ * already committed to, not a new judgment call.
+ */
+export function buildQualityRow(videoName: string, timebase: Timebase, tracks: readonly FrameTrack[]): QualityRow {
+  const total = tracks.length
+  const counts = { TRACKED: 0, LOST: 0, OCCLUDED_IN_HOLE: 0, IN_ESCAPE_BOX: 0 }
+  let longestLostRun = 0
+  let longestLostRunStart: number | null = null
+  let currentRunStart: number | null = null
+  let currentRunLength = 0
+
+  for (const frame of tracks) {
+    counts[frame.state] += 1
+    if (frame.state === 'LOST') {
+      if (currentRunStart === null) currentRunStart = frame.frameIndex
+      currentRunLength += 1
+      if (currentRunLength > longestLostRun) {
+        longestLostRun = currentRunLength
+        longestLostRunStart = currentRunStart
+      }
+    } else {
+      currentRunStart = null
+      currentRunLength = 0
+    }
+  }
+
+  return {
+    video: videoName,
+    frameCount: total,
+    trackedFrames: counts.TRACKED,
+    trackedPercent: percent(counts.TRACKED, total),
+    lostFrames: counts.LOST,
+    lostPercent: percent(counts.LOST, total),
+    occludedInHoleFrames: counts.OCCLUDED_IN_HOLE,
+    occludedInHolePercent: percent(counts.OCCLUDED_IN_HOLE, total),
+    inEscapeBoxFrames: counts.IN_ESCAPE_BOX,
+    inEscapeBoxPercent: percent(counts.IN_ESCAPE_BOX, total),
+    longestLostRunFrames: longestLostRun,
+    longestLostRunStartSeconds:
+      longestLostRunStart === null || total === 0 ? null : Number(frameTimeSeconds(timebase, longestLostRunStart).toFixed(3)),
     toolVersion: toolIdentifier(),
   }
 }
