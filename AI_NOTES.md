@@ -316,6 +316,24 @@ was wrong about it, what the tell was, how you caught it.
     `npm run typecheck` (`tsc -b`) from here on, documented in CLAUDE.md's
     Commands section so it isn't relearned next session.
 
+17. **A "some videos, not all" bug was a race condition, and the fix was to
+    stop racing rather than to race better.** Elvis reported the path
+    length/speed stat cards were sometimes blank -- "this should never
+    happen" -- on some videos but not others. The inconsistency itself was
+    the tell: a deterministic bug affects every video the same way, and this
+    didn't. Traced it to two effects that both fire on mount with no
+    ordering guarantee between them -- one loading the global default
+    platform diameter into a ref, one auto-detecting the maze and reading
+    that same ref to seed a new ROI's diameter. Whichever video's own
+    decode-open happened to resolve first (varies with file size, so
+    genuinely different per video) decided whether the ref was already
+    populated when detection ran. Fixed by removing the ref entirely and
+    awaiting the default fresh at the point of use in both places that
+    needed it, so there's no second effect left to race against. Added a
+    real e2e test setting the default before any video loads (the ordering
+    most likely to expose the bug) -- there was no test at all for this path
+    before, which is exactly how a race like this survives.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the

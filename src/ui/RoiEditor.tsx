@@ -92,15 +92,6 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
   const [expanded, setExpanded] = useState(true)
   const svgRef = useRef<SVGSVGElement>(null)
   const dragOrigin = useRef<Point | null>(null)
-  // The facility's default diameter, read once and used only to seed a
-  // *newly created* layout -- an already-saved roi's own value always wins.
-  const defaultDiameterCm = useRef<number | null>(null)
-  useEffect(() => {
-    void loadDefaultPlatformDiameterCm().then((value) => {
-      defaultDiameterCm.current = value
-    })
-  }, [])
-
   const width = source?.width ?? 640
   const height = source?.height ?? 480
 
@@ -183,7 +174,18 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
     async (frameSource: FrameSource, index: number, announce: boolean) => {
       setDetecting(true)
       try {
-        const pixels = await frameSource.grabImageData(index)
+        // Fetched fresh here rather than from a ref populated by a separate
+        // mount-time effect: that effect and this detection pass both start
+        // on mount with no ordering guarantee between them, so on some
+        // videos (whichever IndexedDB read happened to resolve first) the
+        // ref was still null when this ran, silently seeding a new ROI with
+        // no platform diameter and leaving path length/speed blank with no
+        // explanation -- a real, reported bug, not a hypothetical. Awaiting
+        // it directly here removes the race instead of racing it better.
+        const [pixels, defaultDiameterCm] = await Promise.all([
+          frameSource.grabImageData(index),
+          loadDefaultPlatformDiameterCm(),
+        ])
         const gray = rgbaToGray(pixels.data, pixels.width, pixels.height)
         const detection = detectMaze(gray)
         if (!detection.ok) {
@@ -208,7 +210,7 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
             ...next,
             holes: detection.holes.map((h) => ({ x: h.x, y: h.y })),
             targetHole: current?.targetHole ?? null,
-            platformDiameterCm: current?.platformDiameterCm ?? defaultDiameterCm.current,
+            platformDiameterCm: current?.platformDiameterCm ?? defaultDiameterCm,
           }
         })
         setHoleCount(detection.holeCount)
@@ -328,11 +330,19 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
       }
       const { platformRadius, ring } = ringFromClicks(next[0]!, next[1]!, next[2]!, holeCount)
       const created = createRoi(next[0]!, platformRadius, ring, { source: 'manual' })
-      setRoi(
-        defaultDiameterCm.current !== null
-          ? setPlatformDiameterCm(created, defaultDiameterCm.current)
-          : created,
-      )
+      setRoi(created)
+      // Fetched fresh rather than a pre-loaded ref -- see the same note in
+      // runDetection. Three real clicks give this plenty of time to resolve
+      // in practice, but there's no reason to keep two different ways of
+      // reading the same setting when one of them is provably racy.
+      void loadDefaultPlatformDiameterCm().then((defaultDiameterCm) => {
+        if (defaultDiameterCm === null) return
+        setRoi((current) =>
+          current && current.platformDiameterCm === null
+            ? setPlatformDiameterCm(current, defaultDiameterCm)
+            : current,
+        )
+      })
       setClicks([])
       setStatus(`${holeCount} holes placed by hand.`)
     },

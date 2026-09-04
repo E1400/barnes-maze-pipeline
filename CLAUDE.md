@@ -489,6 +489,28 @@ just change code silently, when a decision changes.
   it's set — a shape difference, not just a colour one) rather than being
   the third subsection down, since real-world units are load-bearing for
   every measure downstream, not a footnote.
+- **Fixed a real race that silently left path length/speed blank on some
+  videos (2026-09-04), `RoiEditor.tsx`.** Elvis reported the length/speed
+  stat cards were blank on some videos with no explanation -- "this should
+  never happen." Root cause: the default diameter used to be read once into
+  a ref by its own mount-time effect, and auto-detection (a separate
+  mount-time effect) read that ref when building the new ROI. Nothing
+  guaranteed which of the two IndexedDB reads resolved first, so on
+  whichever videos the detection effect happened to win the race, it built
+  the new ROI with the ref still `null` -- silently seeding no platform
+  diameter, and therefore no path length or speed, with no visible error.
+  "Some videos, not all" is exactly the signature of a race, not a
+  deterministic bug, which is why it took a direct report to surface: a
+  video's own open-and-decode time varies with file size, changing which
+  read wins on a given machine on a given run. Fixed by reading the default
+  fresh via `await loadDefaultPlatformDiameterCm()` at the point of use in
+  both the auto-detection path and the manual 3-click path, instead of a
+  pre-loaded ref with no ordering guarantee against the effect that
+  populates it. Added an e2e test setting the default before a video is
+  even loaded (the least favourable ordering for the race to lose) and
+  asserting the per-video field is seeded immediately once detection
+  completes -- this exact scenario had no test coverage before, which is
+  how the race went unnoticed.
 - **`.roi-hole--target`'s fill is fully transparent, not solid or translucent
   (revised twice now, 2026-09-03).** A solid fill (the original fix for
   mistake 14, see below) hid the mouse at the exact moment it entered the

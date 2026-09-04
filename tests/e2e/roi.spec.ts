@@ -100,6 +100,25 @@ test('calibration reports real-world sizes, not just a ratio', async ({ page }) 
   await expect(page.locator('.roi-scalebar')).toHaveCount(1)
 })
 
+test('a global default platform diameter seeds a newly detected layout automatically', async ({ page }) => {
+  // Real, reported bug: the per-video field seeds from a ref populated by a
+  // separate mount-time effect, racing the auto-detection effect with no
+  // ordering guarantee -- on some videos the default hadn't loaded yet when
+  // detection ran, silently leaving the diameter (and therefore path length
+  // and speed) blank with no explanation. Set the default BEFORE any video
+  // is even loaded, the least favourable ordering for the race to lose.
+  await page.goto('./')
+  await page.getByLabel('Platform diameter (cm)').fill('92')
+  await page.getByLabel('Choose video files').setInputFiles(FIXTURE)
+  await page.getByTestId('video-row').first().waitFor()
+  await page.getByRole('button', { name: /Define maze|Review maze/ }).click()
+  const svg = page.locator('svg.roi-canvas')
+  await svg.waitFor({ timeout: 30_000 })
+  await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
+
+  await expect(page.getByLabel('Platform diameter (cm) for this video')).toHaveValue('92')
+})
+
 test('the layout, target and pins survive a reload', async ({ page }) => {
   const svg = await openEditor(page)
   const hole = page.locator('circle.roi-hole').first()
