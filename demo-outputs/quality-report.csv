@@ -1,0 +1,4 @@
+video,frameCount,trackedFrames,trackedPercent,lostFrames,lostPercent,occludedInHoleFrames,occludedInHolePercent,inEscapeBoxFrames,inEscapeBoxPercent,longestLostRunFrames,longestLostRunStartSeconds,toolVersion
+test50.mp4,5539,5389,97.3,150,2.7,0,0,0,0,150,0,barnes-maze-pipeline 0.1.0
+test51.mp4,741,541,73,0,0,0,0,200,27,0,,barnes-maze-pipeline 0.1.0
+test53.mp4,905,632,69.8,150,16.6,0,0,123,13.6,150,0,barnes-maze-pipeline 0.1.0

@@ -199,12 +199,6 @@ right, or don't work yet, not things left out on purpose.
   relative units and the two edit-heavy screens (ROI editor, review
   workspace) already break out to a wider column, which should hold up, but
   this hasn't been tested at 200% zoom on a real browser and confirmed.
-- **`demo-outputs/` is not yet populated.** The brief requires the real,
-  committed per-trial summary, per-event detail, and quality report for all
-  three sample videos. As of this commit the directory holds only its own
-  README explaining what belongs there — the generation step (run all three
-  clips through the deployed tool, export, commit the CSVs) hasn't happened
-  yet. This is the single most important open item before submission.
 - **The re-encoded sample clips are lower quality than the originals**
   (traded off deliberately by the brief's authors to keep the repo small and
   seekable — see `data/barnes-maze/README.md`). Not observed to matter for
@@ -248,7 +242,6 @@ src/io/         CSV/XLSX export and chart SVG/PNG download
 scripts/        helper scripts (fetching the sample clips)
 tests/e2e/      Playwright end-to-end tests
 demo-outputs/   committed real outputs for test50 / test51 / test53
-                (not yet populated — see "Known limitations")
 docs/           build plan and an archived copy of the take-home brief
 ```
 
