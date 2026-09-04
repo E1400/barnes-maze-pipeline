@@ -10,9 +10,9 @@
 
 import { axisEndpoints, connectedComponents, type ComponentStats } from './components.ts'
 import { absDiff, applyMask } from './image.ts'
-import { open } from './morphology.ts'
+import { open, type MorphologyScratch } from './morphology.ts'
 import { binarize, otsuThreshold } from './threshold.ts'
-import type { BinaryMask, GrayFrame } from './types.ts'
+import { createGray, type BinaryMask, type GrayFrame } from './types.ts'
 
 export interface DetectionParams {
   /**
@@ -86,8 +86,42 @@ const NOT_FOUND = (threshold: number, candidateCount = 0, runnerUpArea = 0): Det
   runnerUpArea,
 })
 
+interface DetectorScratch {
+  readonly diff: GrayFrame
+  readonly binary: Uint8Array
+  readonly morphology: MorphologyScratch
+  readonly labels: Int32Array
+}
+
 export class TypeScriptDetector implements Detector {
   readonly name = 'typescript'
+
+  // Reused across every frame of a video: the naive version allocated ~8
+  // fresh full-frame buffers (~3MB total) per call, and profiling a real
+  // tracking run showed most of the per-frame time going to allocation and
+  // GC churn rather than the actual arithmetic -- see CLAUDE.md's perf
+  // notes. Re-created only if the frame size actually changes (never
+  // happens mid-video, but handled correctly rather than assumed away).
+  private scratch: DetectorScratch | null = null
+
+  private ensureScratch(width: number, height: number): DetectorScratch {
+    if (this.scratch && this.scratch.diff.width === width && this.scratch.diff.height === height) {
+      return this.scratch
+    }
+    const size = width * height
+    this.scratch = {
+      diff: createGray(width, height),
+      binary: new Uint8Array(size),
+      morphology: {
+        erodeHorizontal: new Uint8Array(size),
+        eroded: new Uint8Array(size),
+        dilateHorizontal: new Uint8Array(size),
+        opened: new Uint8Array(size),
+      },
+      labels: new Int32Array(size),
+    }
+    return this.scratch
+  }
 
   detect(
     frame: GrayFrame,
@@ -95,9 +129,13 @@ export class TypeScriptDetector implements Detector {
     mask: BinaryMask | undefined,
     params: DetectionParams,
   ): Detection {
+    const scratch = this.ensureScratch(frame.width, frame.height)
+
     // 1. What changed since the static background. The mouse moves; the
-    //    platform, the holes and the cable do not.
-    const difference = mask ? applyMask(absDiff(frame, background), mask) : absDiff(frame, background)
+    //    platform, the holes and the cable do not. Masked in place -- no
+    //    second buffer needed for what used to be two allocating calls.
+    absDiff(frame, background, scratch.diff)
+    const difference = mask ? applyMask(scratch.diff, mask, scratch.diff) : scratch.diff
 
     // 2. How much change counts. Reported either way.
     const threshold =
@@ -106,11 +144,11 @@ export class TypeScriptDetector implements Detector {
         : Math.max(params.minThreshold, otsuThreshold(difference, mask))
 
     // 3. Binary foreground, opened to drop the tail and speckle.
-    const binary = binarize(difference, threshold, mask)
-    const cleaned = open(binary, frame.width, frame.height, params.openRadius)
+    const binary = binarize(difference, threshold, mask, scratch.binary)
+    const cleaned = open(binary, frame.width, frame.height, params.openRadius, scratch.morphology)
 
     // 4. Largest blob within the plausible size range.
-    const labelled = connectedComponents(cleaned, frame.width, frame.height)
+    const labelled = connectedComponents(cleaned, frame.width, frame.height, scratch.labels)
     const candidates = labelled.components.filter(
       (c: ComponentStats) => c.area >= params.minAreaPx && c.area <= params.maxAreaPx,
     )

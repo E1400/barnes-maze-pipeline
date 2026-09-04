@@ -60,11 +60,13 @@ export function binarize(
   frame: GrayFrame,
   threshold: number,
   mask?: BinaryMask,
+  out: Uint8Array = new Uint8Array(frame.data.length),
 ): BinaryMask {
-  const out = new Uint8Array(frame.data.length)
+  // Always assigns every index (no skip-and-rely-on-zero-init) so a reused
+  // `out` from a previous frame never leaks a stale 1 through at a masked-out
+  // pixel -- correctness matters more here than the branch this used to skip.
   for (let i = 0; i < frame.data.length; i++) {
-    if (mask && !mask[i]) continue
-    out[i] = frame.data[i]! > threshold ? 1 : 0
+    out[i] = mask && !mask[i] ? 0 : frame.data[i]! > threshold ? 1 : 0
   }
   return out
 }

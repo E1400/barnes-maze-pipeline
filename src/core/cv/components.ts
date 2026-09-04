@@ -61,12 +61,22 @@ class UnionFind {
   }
 }
 
+/**
+ * `labelsOut` defaults to a fresh array (existing callers and tests are
+ * unaffected), but the tracking hot path -- once per video frame -- passes
+ * one it reuses across frames instead of allocating a fresh ~1.2MB
+ * `Int32Array` every time. Explicitly zeroed first: only foreground pixels
+ * get written below, so a reused buffer would otherwise leak a stale label
+ * through at a background pixel from the previous frame.
+ */
 export function connectedComponents(
   mask: BinaryMask,
   width: number,
   height: number,
+  labelsOut: Int32Array = new Int32Array(mask.length),
 ): LabelledImage {
-  const labels = new Int32Array(mask.length)
+  const labels = labelsOut
+  labels.fill(0)
   const uf = new UnionFind()
 
   // First pass: provisional labels, recording equivalences.
