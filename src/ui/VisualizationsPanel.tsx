@@ -10,13 +10,19 @@
  * carry a `<title>` count, raster bars are shaped differently by kind, bars
  * print their own numbers) -- CLAUDE.md's "no meaning encoded by color
  * alone" applies to charts exactly as much as it does to the ROI editor.
+ *
+ * Every chart is a real, standalone `<svg>`, so each gets its own SVG/PNG
+ * download via chartExport.ts -- "visualizations, generously... exportable"
+ * per CLAUDE.md's non-negotiables means exportable as files, not just
+ * visible on screen (Elvis's feedback, 2026-09-04).
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { frameTimeSeconds } from '../core/timebase.ts'
 import { computeOccupancyGrid } from '../core/occupancyGrid.ts'
 import { groupConsecutiveInvestigations } from '../core/investigationEdits.ts'
 import type { SearchStrategyLabel } from '../core/searchStrategy.ts'
+import { downloadSvgAsPng, downloadSvgFile } from '../io/chartExport.ts'
 import { useCohortData, type CohortVideo } from './useCohortData.ts'
 
 interface Props {
@@ -31,6 +37,38 @@ const STRATEGY_LABEL: Record<SearchStrategyLabel, string> = {
 
 function formatSeconds(seconds: number): string {
   return `${seconds.toFixed(1)}s`
+}
+
+function fileStem(name: string): string {
+  return name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '_')
+}
+
+/** The chart's own background is transparent (it sits on `.viz-chart`'s surface); a downloaded PNG needs a real fill or it loses its axis lines and text against a dark viewer. */
+function currentBackground(): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
+  return value || '#ffffff'
+}
+
+function ChartDownloadButtons({ svgRef, filenameBase }: { svgRef: React.RefObject<SVGSVGElement | null>; filenameBase: string }) {
+  return (
+    <div className="button-row viz-download-row">
+      <button
+        type="button"
+        onClick={() => svgRef.current && downloadSvgFile(svgRef.current, `${filenameBase}.svg`)}
+      >
+        Download SVG
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (!svgRef.current) return
+          void downloadSvgAsPng(svgRef.current, `${filenameBase}.png`, currentBackground())
+        }}
+      >
+        Download PNG
+      </button>
+    </div>
+  )
 }
 
 /** One bar per visit (consecutive same-hole rows merged), not one per raw row -- an 8-row raster for 2 real visits would misread as 8 separate checks. */
@@ -58,6 +96,7 @@ function visitSpans(video: CohortVideo): { holeIndex: number; isTarget: boolean;
 }
 
 function OccupancyHeatmap({ video }: { video: CohortVideo }) {
+  const svgRef = useRef<SVGSVGElement>(null)
   const grid = useMemo(() => computeOccupancyGrid(video.effective, video.roi, 16), [video])
   const roi = video.roi
   const originX = roi.center.x - roi.platformRadius
@@ -67,12 +106,14 @@ function OccupancyHeatmap({ video }: { video: CohortVideo }) {
   return (
     <div className="viz-chart">
       <svg
+        ref={svgRef}
         viewBox={`${originX} ${originY} ${size} ${size}`}
         width={320}
         height={320}
         role="img"
         aria-label={`Occupancy heatmap for ${video.video.name}, busiest cell visited ${grid.maxCount} frames`}
       >
+        <rect x={originX} y={originY} width={size} height={size} className="viz-chart-bg" />
         {grid.counts.map((row, r) =>
           row.map((count, c) => {
             if (count === 0) return null
@@ -100,11 +141,13 @@ function OccupancyHeatmap({ video }: { video: CohortVideo }) {
       <p className="hint">
         Darker = more time spent there. Busiest cell: {grid.maxCount} tracked frame{grid.maxCount === 1 ? '' : 's'}.
       </p>
+      <ChartDownloadButtons svgRef={svgRef} filenameBase={`${fileStem(video.video.name)}-occupancy`} />
     </div>
   )
 }
 
 function HoleVisitRaster({ video }: { video: CohortVideo }) {
+  const svgRef = useRef<SVGSVGElement>(null)
   const spans = useMemo(() => visitSpans(video), [video])
   const holeCount = video.roi.holes.length
   const duration = video.video.timebase.durationSeconds
@@ -122,7 +165,15 @@ function HoleVisitRaster({ video }: { video: CohortVideo }) {
 
   return (
     <div className="viz-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} width={600} height={Math.min(height, 420)} role="img" aria-label={`Hole visit timeline for ${video.video.name}`}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={600}
+        height={Math.min(height, 420)}
+        role="img"
+        aria-label={`Hole visit timeline for ${video.video.name}`}
+      >
+        <rect x={0} y={0} width={width} height={height} className="viz-chart-bg" />
         {Array.from({ length: holeCount }, (_, i) => (
           <g key={i}>
             <rect
@@ -165,24 +216,39 @@ function HoleVisitRaster({ video }: { video: CohortVideo }) {
         animal near the hole (strong signal); thin border = nose came close while the body stayed
         visible.
       </p>
+      <ChartDownloadButtons svgRef={svgRef} filenameBase={`${fileStem(video.video.name)}-hole-visits`} />
     </div>
   )
 }
 
+/** "Nice" tick step for an axis spanning 0..max, in a 1/2/5 x 10^n progression, so labels read as round numbers rather than an arbitrary quarter-fraction of the busiest trial. */
+function niceTickStep(max: number, targetTicks: number): number {
+  const rawStep = max / targetTicks
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep))
+  const normalized = rawStep / magnitude
+  const step = normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10
+  return step * magnitude
+}
+
 function LearningCurve({ cohort }: { cohort: readonly CohortVideo[] }) {
-  const width = 520
-  const height = 220
-  const left = 50
+  const svgRef = useRef<SVGSVGElement>(null)
+  const width = 560
+  const height = 240
+  const left = 56
   const top = 16
   const plotWidth = width - left - 20
   const plotHeight = height - top - 40
   const n = cohort.length
   const step = n > 1 ? plotWidth / (n - 1) : 0
 
-  const maxLatency = Math.max(
+  const rawMax = Math.max(
     1,
     ...cohort.flatMap((v) => [v.measures.primaryLatencySeconds ?? 0, v.measures.totalLatencySeconds ?? 0]),
   )
+  const tickStep = niceTickStep(rawMax, 4)
+  const maxLatency = Math.ceil(rawMax / tickStep) * tickStep
+  const ticks = Array.from({ length: Math.round(maxLatency / tickStep) + 1 }, (_, i) => i * tickStep)
+
   const yFor = (seconds: number) => top + plotHeight - (seconds / maxLatency) * plotHeight
   const xFor = (i: number) => left + i * step
 
@@ -194,7 +260,32 @@ function LearningCurve({ cohort }: { cohort: readonly CohortVideo[] }) {
 
   return (
     <div className="viz-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label="Latency per video, in load order">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        role="img"
+        aria-label="Latency per video, in load order"
+      >
+        <rect x={0} y={0} width={width} height={height} className="viz-chart-bg" />
+        {ticks.map((seconds) => (
+          <g key={seconds}>
+            <line x1={left} y1={yFor(seconds)} x2={left + plotWidth} y2={yFor(seconds)} className="viz-gridline" />
+            <text x={left - 6} y={yFor(seconds) + 3} textAnchor="end" className="viz-axis-label">
+              {seconds}s
+            </text>
+          </g>
+        ))}
+        <text
+          x={14}
+          y={top + plotHeight / 2}
+          textAnchor="middle"
+          className="viz-axis-label"
+          transform={`rotate(-90 14 ${top + plotHeight / 2})`}
+        >
+          Latency (s)
+        </text>
         <line x1={left} y1={top} x2={left} y2={top + plotHeight} className="viz-axis-line" />
         <line x1={left} y1={top + plotHeight} x2={left + plotWidth} y2={top + plotHeight} className="viz-axis-line" />
         <polyline points={line('primaryLatencySeconds')} className="viz-line viz-line--primary" />
@@ -231,30 +322,74 @@ function LearningCurve({ cohort }: { cohort: readonly CohortVideo[] }) {
         reached within the trial, not omitted. Order shown is load order, not necessarily trial
         order — rename or re-load videos in trial sequence if that matters for a given cohort.
       </p>
+      <ChartDownloadButtons svgRef={svgRef} filenameBase="cohort-learning-curve" />
     </div>
   )
 }
 
 function CohortComparison({ cohort }: { cohort: readonly CohortVideo[] }) {
+  const svgRef = useRef<SVGSVGElement>(null)
   const maxErrors = Math.max(1, ...cohort.map((v) => v.measures.totalErrors))
+
+  const rowHeight = 30
+  const nameWidth = 110
+  const barWidth = 110
+  const barGap = 44
+  const barLeft = 12 + nameWidth
+  const strategyLeft = barLeft + barWidth + barGap + barWidth + 36
+  const width = strategyLeft + 90
+  const height = cohort.length * rowHeight + 40
+  const barScale = (value: number) => (value / maxErrors) * barWidth
+
   return (
-    <div className="viz-chart viz-comparison">
-      {cohort.map((v) => (
-        <div key={v.video.id} className="viz-comparison-row">
-          <span className="viz-comparison-name">{v.video.name}</span>
-          <div className="viz-bar-track">
-            <div className="viz-bar viz-bar--primary" style={{ width: `${(v.measures.primaryErrors / maxErrors) * 100}%` }} />
-          </div>
-          <span className="viz-comparison-value">{v.measures.primaryErrors} before target</span>
-          <div className="viz-bar-track">
-            <div className="viz-bar viz-bar--total" style={{ width: `${(v.measures.totalErrors / maxErrors) * 100}%` }} />
-          </div>
-          <span className="viz-comparison-value">{v.measures.totalErrors} whole trial</span>
-          <span className="status-chip">
-            {v.strategy ? STRATEGY_LABEL[v.strategy.label] : 'Unclassified'}
-          </span>
-        </div>
-      ))}
+    <div className="viz-chart">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={Math.min(width, 640)}
+        height={height}
+        role="img"
+        aria-label="Errors and search strategy per video"
+      >
+        <rect x={0} y={0} width={width} height={height} className="viz-chart-bg" />
+        <text x={barLeft} y={16} className="viz-axis-label">Errors before target</text>
+        <text x={barLeft + barWidth + barGap} y={16} className="viz-axis-label">Errors, whole trial</text>
+        <text x={strategyLeft} y={16} className="viz-axis-label">Strategy</text>
+        {cohort.map((v, i) => {
+          const y = 26 + i * rowHeight
+          return (
+            <g key={v.video.id}>
+              <text x={8} y={y + 14} className="viz-axis-label viz-comparison-name-label">
+                {v.video.name.length > 16 ? `${v.video.name.slice(0, 14)}…` : v.video.name}
+              </text>
+              <rect x={barLeft} y={y} width={barWidth} height={12} className="viz-bar-track-svg" />
+              <rect x={barLeft} y={y} width={barScale(v.measures.primaryErrors)} height={12} className="viz-bar-svg viz-bar-svg--primary" />
+              <text x={barLeft + barWidth + 6} y={y + 10} className="viz-axis-label">{v.measures.primaryErrors}</text>
+
+              <rect x={barLeft + barWidth + barGap} y={y} width={barWidth} height={12} className="viz-bar-track-svg" />
+              <rect
+                x={barLeft + barWidth + barGap}
+                y={y}
+                width={barScale(v.measures.totalErrors)}
+                height={12}
+                className="viz-bar-svg viz-bar-svg--total"
+              />
+              <text x={barLeft + barWidth + barGap + barWidth + 6} y={y + 10} className="viz-axis-label">
+                {v.measures.totalErrors}
+              </text>
+
+              <text x={strategyLeft} y={y + 10} className="viz-axis-label viz-strategy-label">
+                {v.strategy ? STRATEGY_LABEL[v.strategy.label] : 'Unclassified'}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+      <p className="hint">
+        Distinct non-target holes checked, before the target and across the whole trial. Search
+        strategy is printed as text, never color alone.
+      </p>
+      <ChartDownloadButtons svgRef={svgRef} filenameBase="cohort-comparison" />
     </div>
   )
 }
