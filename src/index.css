@@ -653,6 +653,15 @@ a {
 
 .tracking {
   margin-top: 2.5rem;
+  /* Same breakout as steps 2 and 4 (Elvis's feedback, 2026-09-04: the step
+     3 heading bar was sitting at #root's narrower 60rem left edge while its
+     neighbours on both sides sit at the wider 90rem one, reading as
+     misaligned down the page). Step 3's own content doesn't need the extra
+     width, but its heading bar needs to line up with theirs. */
+  width: min(90rem, calc(100vw - 5rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .tracking-plot {
@@ -1192,44 +1201,40 @@ a {
   background: #2fae4e;
 }
 
-.viz-comparison {
-  display: grid;
-  gap: 0.75rem;
+/* Opaque so a downloaded PNG keeps its axis lines and text legible on any
+   background, and so the chart reads the same in the app as in the file. */
+.viz-chart-bg {
+  fill: var(--surface);
 }
 
-.viz-comparison-row {
-  display: grid;
-  grid-template-columns: minmax(6rem, auto) 1fr auto 1fr auto auto;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+.viz-gridline {
+  stroke: var(--border);
+  stroke-dasharray: 2 2;
 }
 
-.viz-comparison-name {
+.viz-download-row {
+  margin-top: 0.5rem;
+}
+
+.viz-bar-track-svg {
+  fill: var(--bg);
+  stroke: var(--border);
+}
+
+.viz-bar-svg--primary {
+  fill: var(--accent);
+}
+
+.viz-bar-svg--total {
+  fill: #2fae4e;
+}
+
+.viz-comparison-name-label {
   font-weight: 600;
+  fill: var(--text);
 }
 
-.viz-bar-track {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 0.25rem;
-  height: 0.75rem;
-  overflow: hidden;
-}
-
-.viz-bar {
-  height: 100%;
-}
-
-.viz-bar--primary {
-  background: var(--accent);
-}
-
-.viz-bar--total {
-  background: #2fae4e;
-}
-
-.viz-comparison-value {
-  color: var(--text-muted);
-  white-space: nowrap;
+.viz-strategy-label {
+  font-weight: 600;
+  fill: var(--text);
 }
