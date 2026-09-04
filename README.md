@@ -1,11 +1,16 @@
 # Barnes Maze Analysis Pipeline
 
 **Live demo:** https://e1400.github.io/barnes-maze-pipeline/
-**Demo video (2–3 min):** TODO — all three sample videos, start to finish
+**Demo video (2–3 min):** TODO — record last, once the flow below is final.
+Show all three sample videos start to finish: load, define the maze, track,
+correct a frame by hand, watch the investigation list and measures update,
+export the CSV. Link it here before submitting — the brief requires it and
+the live URL alone is not a substitute.
 
 A browser-based tool that turns a folder of Barnes maze behavior videos into
-per-trial latency, error, and search-strategy measures, and a downloadable
-spreadsheet — no terminal, no install, no account required.
+per-trial latency, error, and search-strategy measures, plus generous
+visualizations and a downloadable spreadsheet — no terminal, no install, no
+account required.
 
 Built for [Task 1](https://github.com/salk-airc/rse-takehome-2026/blob/main/tasks/01-barnes-maze.md)
 of the Salk AIRC Research Software Engineer take-home.
@@ -20,7 +25,10 @@ a notebook, or a command line.
 ## How to run it
 
 **To just use it:** open the live demo URL above. There is nothing to install
-— no Node, no Python, no account.
+— no Node, no Python, no account. Download `test50.mp4`, `test51.mp4`, and
+`test53.mp4` from
+[salk-airc/rse-takehome-2026](https://github.com/salk-airc/rse-takehome-2026/tree/main/data/barnes-maze)
+and drag them onto the page to start.
 
 The site is published by
 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to
@@ -45,12 +53,12 @@ npm run dev      # dev server on http://localhost:5173
 Other scripts:
 
 ```bash
-npm run build      # production build into dist/
+npm run build      # tsc -b && vite build — production build into dist/
 npm run preview    # serve the production build locally
-npm run lint       # oxlint (warnings fail)
-npm run typecheck  # tsc --build, no emit
-npm test           # vitest, unit tests for src/core
-npm run test:e2e   # playwright smoke test against the production build
+npm run lint       # oxlint --deny-warnings (a warning fails the build, not just an error)
+npm run typecheck  # tsc -b — building the referenced project configs, not `tsc --noEmit -p .`
+npm test           # vitest, unit tests for src/core and src/io
+npm run test:e2e   # playwright, against a real production build via `vite preview`
 ```
 
 The end-to-end test drives a real browser, so the first run needs
@@ -77,22 +85,75 @@ them, so the ground-truth assertions are always enforced there.
 
 ## What it does
 
-1. Load one or more maze videos (drag and drop). Each file's frame rate,
-   frame count, and duration are read from the MP4 container and shown, so you
-   can see the timing was measured rather than assumed.
-2. Define the platform boundary, the 20 holes, and the target hole — a
-   handful of clicks, not twenty.
-3. Automatic tracking of the animal's position, entirely in your browser.
-4. Review tracking quality; correct anything wrong by hand.
-5. Detect hole investigations and the escape-box entry.
-6. Get computed measures (latency, errors, path length, search strategy)
-   with the reasoning shown, not just a label.
-7. Export a CSV/XLSX report.
+A six-step workflow, all in the browser, all reachable without a terminal:
+
+1. **Load videos** — drag and drop, one or many. Each file's frame rate,
+   frame count, and duration are parsed from the MP4 container itself and
+   shown, so timing is measured rather than assumed. Everything (videos,
+   layouts, tracking, corrections) is saved to IndexedDB as you go — closing
+   the tab or refreshing never loses work.
+2. **Check the maze layout** — opening a video runs classical detection
+   (platform edge, all 20 holes, centre, rotation) and proposes the whole
+   ring with zero clicks; drag or nudge anything that's off, mark the target
+   hole, and enter the platform diameter to calibrate real-world units. A
+   layout can be copied onto another video that should be geometrically
+   identical, so a facility films the same rig once and reuses it.
+3. **Track the animal** — pure-TypeScript classical computer vision
+   (background subtraction, connected components, PCA for a nose/tail axis)
+   runs entirely client-side in a Web Worker, with a live progress bar. No
+   GPU, no model download, nothing sent anywhere.
+4. **Review, correct, and detect hole visits** — scrub to any frame, see the
+   overlay, drag a mistracked point to fix it; every downstream number
+   recomputes immediately. The hole-investigation threshold (nose-to-hole
+   distance, minimum duration) is a visible, adjustable setting, not a
+   buried constant, and its detected list is itself editable by hand. Every
+   computed measure (latency, errors, path length, quadrant time, search
+   strategy) is shown with its reasoning and can be manually overridden.
+5. **Export** — CSV and XLSX, both a combined cohort file and a per-video
+   download, one tidy row per trial plus one row per hole-investigation
+   event. Every row carries the detection threshold and the tool version
+   that produced it.
+6. **Visualize** — an occupancy heatmap, a hole-visit timeline, a cohort
+   learning curve, and a cohort comparison, all downloadable as SVG or PNG.
 
 ## What I chose not to build, and why
 
-TODO — fill in as real scope decisions get made during the build. Keep this
-concrete ("X because Y"), not aspirational.
+- **No portable project file.** Everything persists to IndexedDB, so a
+  refresh or a closed tab never loses work — but that's per-browser, per-
+  device storage, not an exportable/importable file a facility could hand
+  between machines or archive separately from the browser profile. The
+  brief asks for "a documented, reloadable file"; what's here is reload-safe
+  but not yet *portable*. Scoped out to prioritize the core tracking/
+  correction/measures/export pipeline within the time available — see
+  "Known limitations" below.
+- **No gap-filling/interpolation display, even though the parameter exists.**
+  `TrackerParams.maxBridgedGapFrames` is declared, documented, and defaults
+  to 3 — but nothing in the UI currently applies or displays a bridged gap.
+  Deliberately conservative: CLAUDE.md's non-negotiable is "tracking
+  failures must be visibly flagged, never silently interpolated," and a
+  half-finished gap-fill display felt riskier than an honest gap. `LOST`
+  frames are always shown as `LOST`, corrected only by hand, never bridged.
+- **No hosted vision API or ONNX/segmentation model.** The three sample
+  clips are a genuinely easy classical-CV case — dark, high-contrast mouse,
+  static camera, static background — so a few hundred lines of pure
+  TypeScript (median-background subtraction, Otsu threshold, connected
+  components) does the job with no GPU, nothing downloaded, and zero data
+  leaving the browser. See "Where the data goes" below.
+- **No "load sample videos" demo button.** The brief asks the sample videos
+  not be committed to this repo, and the app doesn't fetch them from the
+  take-home repo at runtime either — a reviewer has to download the three
+  clips once and drag them in before seeing the tool do anything. A
+  client-side "load the samples from GitHub" button was considered and
+  scoped out; see "Known limitations."
+- **No MCP server or Claude skill for the product itself** (distinct from
+  the `.claude/` *development* tooling described in `AI_NOTES.md`, which is
+  real and used throughout the build). Explicitly optional in the brief;
+  not attempted given the time left after the core pipeline.
+- **No keyboard alternative to dragging a manual position correction** in
+  the step-4 track viewer. The ROI editor's hole placement *does* have a
+  full keyboard alternative (arrow-key nudging) because the brief calls
+  that step out by name; the equivalent for correcting a mistracked frame
+  in step 4 was not built in the time available. See "Known limitations."
 
 ## How the frame timing is read
 
@@ -111,16 +172,62 @@ Measured ground truth and the reasoning: [`docs/timebase-findings.md`](docs/time
 
 ## Known limitations
 
-TODO — be specific as you find real ones (e.g. "hole detection fails when
-the platform is off-center, see `test51`"), not vague ("could be more
-robust").
+Distinguishing real defects from deliberate scope decisions (the latter are
+in "What I chose not to build," above) — these are things that don't work
+right, or don't work yet, not things left out on purpose.
+
+- **No fallback for a browser without WebCodecs.** Frame decoding uses the
+  `VideoDecoder` API directly; a browser that doesn't support it (very old
+  Safari, some embedded browsers) gets a clear error message instead of
+  tracking, not a silent failure — but there's no slower fallback path
+  (e.g. seek-and-draw playback capture) behind it yet.
+- **Tracking is single-threaded per video and takes real time.** `test50`
+  (5,539 frames) takes up to ~4.7 minutes end to end (two full decode
+  passes — one for the background model, one for detection/tracking — see
+  `pipeline.ts`). There's a progress bar and it runs off the main thread, so
+  the tab never freezes, but a facility running sixty videos in one sitting
+  will be waiting, one at a time — there's no batch queue.
+- **Nose-vs-tail assignment can still momentarily flip** on a genuinely
+  ambiguous frame (the animal nearly stationary, body axis ambiguous) even
+  after widening the smoothing window twice this project; rare, but not
+  eliminated, and worth a visible eye on any trial with unusually high
+  hole-investigation counts.
+- **A previously-tracked video's stored track has no version stamp.** If the
+  tracking algorithm improves (as it did twice during this project), a video
+  tracked before the improvement keeps showing pre-improvement numbers until
+  someone explicitly clicks "Re-track this video" — there's no UI signal
+  telling a user their tracking predates the current algorithm. A page
+  reload alone does not re-run tracking; investigations and measures
+  recompute live from whatever track is already stored.
+- **No portable project file** (see "What I chose not to build" — listed
+  again here because it's the closest thing to an actual defect against the
+  brief's explicit ask, not purely a scope choice).
+- **No keyboard alternative for manual position correction** (step 4's
+  drag-to-fix point). ROI hole placement has one; this doesn't yet.
+- **200% browser zoom has not been explicitly verified.** The layout uses
+  relative units and the two edit-heavy screens (ROI editor, review
+  workspace) already break out to a wider column, which should hold up, but
+  this hasn't been tested at 200% zoom on a real browser and confirmed.
+- **`demo-outputs/` is not yet populated.** The brief requires the real,
+  committed per-trial summary, per-event detail, and quality report for all
+  three sample videos. As of this commit the directory holds only its own
+  README explaining what belongs there — the generation step (run all three
+  clips through the deployed tool, export, commit the CSVs) hasn't happened
+  yet. This is the single most important open item before submission.
+- **The re-encoded sample clips are lower quality than the originals**
+  (traded off deliberately by the brief's authors to keep the repo small and
+  seekable — see `data/barnes-maze/README.md`). Not observed to matter for
+  tracking quality on any of the three clips, but noted per the brief's own
+  request to flag it if it turns out to matter.
 
 ## Where the data goes, and what it costs
 
 **What leaves your machine:** nothing. Video files are never uploaded —
-tracking runs entirely client-side using OpenCV.js (a WebAssembly build of
-OpenCV) executing in your browser tab. No frame, coordinate, or measurement
-is ever sent to a server.
+decoding (`VideoDecoder`, a native browser API) and tracking (a pure
+TypeScript classical computer-vision pipeline: background subtraction,
+thresholding, connected components) both run entirely client-side in your
+browser tab, including inside a Web Worker so the UI never freezes. No frame,
+coordinate, or measurement is ever sent to a server.
 
 **Keys and cost:** none required. There's no API key, no account, and no
 per-run cost — the whole pipeline runs on the CPU in the browser, for free,
@@ -128,23 +235,31 @@ for as many videos as you want to process.
 
 ## AI-assisted development
 
-See [AI_NOTES.md](AI_NOTES.md).
+See [AI_NOTES.md](AI_NOTES.md) for tools, setup, and specific moments of
+disagreement or correction, logged as they happened. `CLAUDE.md` (this repo's
+root) is the running architecture-decision record everything above was built
+against; `.claude/agents/cv-reviewer.md` and `.claude/commands/sample-check.md`
+are the two pieces of custom Claude Code configuration built specifically for
+this project, not generic scaffolding.
 
 ## Repo layout
 
 ```
-src/core/     pure logic, no DOM — unit-tested with Vitest
-src/workers/  OpenCV.js tracking worker
-src/state/    IndexedDB persistence
-src/ui/       React components
-src/io/       CSV/XLSX export and the project-file schema
-scripts/      helper scripts (fetching the sample clips)
-tests/e2e/    Playwright end-to-end tests
-demo-outputs/ committed real outputs for test50 / test51 / test53
-docs/         build plan and an archived copy of the take-home brief
+src/core/       pure TS logic, no DOM — unit-tested with Vitest (timebase,
+                geometry, the CV detector, tracking state machine, event
+                detection, measures, search-strategy classifier)
+src/workers/    tracking.worker.ts — decode/background/detection/tracking
+                off the main thread, posting progress
+src/state/      IndexedDB persistence layer
+src/ui/         React components: VideoLoader, RoiEditor, TrackingPanel,
+                ReviewWorkspace, ExportPanel, VisualizationsPanel
+src/io/         CSV/XLSX export and chart SVG/PNG download
+scripts/        helper scripts (fetching the sample clips)
+tests/e2e/      Playwright end-to-end tests
+demo-outputs/   committed real outputs for test50 / test51 / test53
+                (not yet populated — see "Known limitations")
+docs/           build plan and an archived copy of the take-home brief
 ```
-
-Each `src/` subdirectory has a README describing what belongs there.
 
 ## License
 
