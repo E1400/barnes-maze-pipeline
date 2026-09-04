@@ -1,15 +1,37 @@
 # AI Notes
 
-Skeleton — fill in as you go, not at the end. The brief specifically wants
-real moments, not a reconstructed narrative.
-
 ## Tools and setup
 
-- Model(s) used: Claude Opus 5, via Claude Code in the terminal.
-- Configuration: `CLAUDE.md` (repo root), `.claude/agents/`, `.claude/commands/`
-  — describe what each does and why it exists once they're doing real work,
-  not just scaffolding.
-- MCP servers, if any:
+- **Model(s) used:** Claude Opus 5 for the initial environment setup and
+  scaffolding sessions; Claude Sonnet 5 for the majority of feature
+  development from the CV-engine revision onward (see the 2026-09-01
+  architecture change in `CLAUDE.md`) through to this submission. Both via
+  Claude Code, in the terminal and in a VS Code-integrated session — no
+  chat-only usage.
+- **Configuration:**
+  - `CLAUDE.md` (repo root) is the running architecture-decision record —
+    every non-obvious choice (why pure TypeScript over OpenCV.js, why the
+    ROI editor is detection-first, why tracking runs in a Worker, why
+    escape detection needed a second finalize pass, and so on) is written
+    down there as it's decided, with the reasoning and what was verified,
+    not reconstructed after the fact. It's the single most load-bearing
+    piece of AI-tooling configuration in this project — every session
+    starts by reading it and is expected to keep it current.
+  - `.claude/agents/cv-reviewer.md` — a project-specific subagent, not
+    generic scaffolding. Invoked after any change to the tracking pipeline,
+    event detection, or measures computation specifically to check for this
+    project's own named failure modes (silent interpolation, lost-vs-
+    occluded confusion, hard-coding to one clip, buried thresholds) rather
+    than doing a generic code review.
+  - `.claude/commands/sample-check.md` — a slash command that runs the
+    pipeline against all three real committed sample videos and reports
+    what changed versus the last committed `demo-outputs/`, so a
+    regression against real footage (not just synthetic test fixtures) is
+    one command away rather than something that has to be remembered.
+- **MCP servers:** none. This project's own agent-interface angle (the
+  brief's optional "if you have room" item) was not attempted — the time
+  available went to the core pipeline and, at the end, tracking
+  performance instead; see the README's "What I chose not to build."
 
 ## Disagreements / mistakes / thrown-out approaches
 

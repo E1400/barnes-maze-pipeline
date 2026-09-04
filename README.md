@@ -126,34 +126,27 @@ A six-step workflow, all in the browser, all reachable without a terminal:
   but not yet *portable*. Scoped out to prioritize the core tracking/
   correction/measures/export pipeline within the time available — see
   "Known limitations" below.
-- **No gap-filling/interpolation display, even though the parameter exists.**
-  `TrackerParams.maxBridgedGapFrames` is declared, documented, and defaults
-  to 3 — but nothing in the UI currently applies or displays a bridged gap.
-  Deliberately conservative: CLAUDE.md's non-negotiable is "tracking
-  failures must be visibly flagged, never silently interpolated," and a
-  half-finished gap-fill display felt riskier than an honest gap. `LOST`
-  frames are always shown as `LOST`, corrected only by hand, never bridged.
+- **No gap-filling/interpolation.** Deliberately conservative: CLAUDE.md's
+  non-negotiable is "tracking failures must be visibly flagged, never
+  silently interpolated." `LOST` frames are always shown as `LOST`,
+  corrected only by hand, never bridged or held-position-filled.
 - **No hosted vision API or ONNX/segmentation model.** The three sample
   clips are a genuinely easy classical-CV case — dark, high-contrast mouse,
   static camera, static background — so a few hundred lines of pure
   TypeScript (median-background subtraction, Otsu threshold, connected
   components) does the job with no GPU, nothing downloaded, and zero data
   leaving the browser. See "Where the data goes" below.
-- **No "load sample videos" demo button.** The brief asks the sample videos
-  not be committed to this repo, and the app doesn't fetch them from the
-  take-home repo at runtime either — a reviewer has to download the three
-  clips once and drag them in before seeing the tool do anything. A
-  client-side "load the samples from GitHub" button was considered and
-  scoped out; see "Known limitations."
 - **No MCP server or Claude skill for the product itself** (distinct from
   the `.claude/` *development* tooling described in `AI_NOTES.md`, which is
   real and used throughout the build). Explicitly optional in the brief;
   not attempted given the time left after the core pipeline.
-- **No keyboard alternative to dragging a manual position correction** in
-  the step-4 track viewer. The ROI editor's hole placement *does* have a
-  full keyboard alternative (arrow-key nudging) because the brief calls
-  that step out by name; the equivalent for correcting a mistracked frame
-  in step 4 was not built in the time available. See "Known limitations."
+- **No cross-video reuse of tracking work between videos** ("the second
+  video is faster to process than the first, because the tool learned
+  something from the first" — from the brief's own "what good looks like").
+  Each video's background model and detection run independently; nothing
+  learned tracking one video currently speeds up the next. A real, bigger
+  piece of work, being scoped separately from this pass's performance
+  fixes rather than folded in casually — see the perf branch notes.
 
 ## How the frame timing is read
 
@@ -202,8 +195,6 @@ right, or don't work yet, not things left out on purpose.
 - **No portable project file** (see "What I chose not to build" — listed
   again here because it's the closest thing to an actual defect against the
   brief's explicit ask, not purely a scope choice).
-- **No keyboard alternative for manual position correction** (step 4's
-  drag-to-fix point). ROI hole placement has one; this doesn't yet.
 - **200% browser zoom has not been explicitly verified.** The layout uses
   relative units and the two edit-heavy screens (ROI editor, review
   workspace) already break out to a wider column, which should hold up, but

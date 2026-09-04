@@ -270,10 +270,19 @@ just change code silently, when a decision changes.
   `OCCLUDED_IN_HOLE` run at the marked target hole to `IN_ESCAPE_BOX` only
   when it runs to the end of the clip without the animal reappearing — a
   hole visit the animal returns from is never escape, regardless of which
-  hole. Gap-fill/bridging (`maxBridgedGapFrames`) is declared in
-  `TrackerParams` but not yet wired into a display layer — deferred to the
-  correction-UI milestone, since "visible, disclosed gap-fill" is a display
-  concern, not a classification one.
+  hole.
+- **Gap-fill/bridging removed, not deferred (2026-09-04).** A
+  `maxBridgedGapFrames` field lived on `TrackerParams` from early in the
+  project, documented as "declared... but not yet wired into a display
+  layer." It never got wired in, and by this point in the project nothing
+  read it — a genuinely dead field, not a real feature. Rather than
+  continue deferring it, deleted it outright: `LOST` frames display as
+  `LOST`, full stop, with no bridged/held-position rendering. This is a
+  scope decision, not a silent regression — it was never functional to
+  begin with, and CLAUDE.md's own convention is to delete confirmed-unused
+  code rather than carry it as aspirational scaffolding. Manual correction
+  is still the only way to fix a `LOST` span, exactly as `TrackViewer.tsx`
+  has always said.
 - **Nose vs. body centroid:** morphological opening (already applied in
   `TypeScriptDetector`) strips the thin tail before the body blob is
   measured; `axisEndpoints` gives both ends of the principal axis. The
@@ -804,6 +813,21 @@ just change code silently, when a decision changes.
   measure overrides, the global default platform diameter) — a refresh must
   never lose
   annotation work.
+- **No portable project file — final scope decision, 2026-09-04, not a
+  deferred TODO.** The brief asks for "a documented, reloadable file" so a
+  facility can "re-run analysis without re-tracking," and `src/io/README.md`
+  used to describe a "versioned project-file JSON schema" as if it existed.
+  It doesn't. What's actually built is reload-safe (IndexedDB, same
+  browser/device — a refresh or closed tab never loses work) but not
+  *portable* (no export-to-file / import-from-file that would let a
+  facility archive a project or hand it to a colleague on a different
+  machine). Explicitly deciding not to build this now rather than leaving
+  it an open TODO: it would mean serializing every IndexedDB store (videos'
+  blobs included, which are the large part) into one JSON-plus-blob
+  container, a real file-format design exercise in its own right, and the
+  time this pass has left is going to tracking performance instead — see
+  the perf work below. Recorded as a known limitation in the README, not
+  silently dropped.
 - **Export:** SheetJS for CSV/XLSX.
 - **Testing:** Vitest for pure logic (timebase math, ROI geometry, event
   detection, the search-strategy classifier), Playwright for an end-to-end
