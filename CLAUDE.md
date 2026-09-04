@@ -299,17 +299,30 @@ just change code silently, when a decision changes.
   shouldn't be forced to shrink -- but the *original* code used `0` for
   both erode and dilate (verified by re-reading the pre-existing call
   sites, not assumed), and changing it would have been a real behaviour
-  change disguised as a speed fix. `open()` is still the single largest
-  remaining cost even after this fix (65.2% of a now much smaller total)
-  -- a true O(1)-per-pixel min/max filter (a monotonic-deque/van Herk
-  approach) would cut it further, left as a known next step rather than
-  attempted in this pass. **Not yet built, and deliberately not attempted
-  without checking in first:** "the second video is faster to process
-  than the first, because the tool learned something from the first" (the
-  brief's own "what good looks like" framing) is a different, bigger kind
-  of speedup -- cross-video reuse of e.g. the background model or detection
-  parameters -- and is out of scope for this fix, which only makes any one
-  video's own tracking pass faster.
+  change disguised as a speed fix. **Two further optimization ideas
+  checked afterward and found not worth shipping, same honesty standard
+  as the buffer-reuse result above:** an interior/border split (pixels far
+  enough from the image edge to never need a bounds check take a branch-
+  free fast path, only the border columns/rows pay for the check) measured
+  1.06x on the same benchmark -- branch prediction was apparently already
+  handling the redundant, always-true bounds check well; a fully-unrolled
+  radius-2 fast path was considered but not built at all once the
+  interior/border result came back marginal, since it would add a
+  permanent two-tier code path (fast for the default radius, slower for
+  any other) for a similarly small return. Concluding from this, not just
+  assuming it: the earlier callback-removal fix already captured
+  the large win available in this algorithm's current shape; a genuinely
+  different approach (a true O(1)-per-pixel monotonic-deque/van Herk
+  filter) is the only remaining lever that showed real headroom in the
+  profiling, and wasn't attempted given the returns already measured
+  from two cheaper attempts at squeezing the existing shape further.
+- **Not yet built, and deliberately not attempted without checking in
+  first:** "the second video is faster to process than the first, because
+  the tool learned something from the first" (the brief's own "what good
+  looks like" framing) is a different, bigger kind of speedup -- cross-video
+  reuse of e.g. the background model or detection parameters -- and Elvis
+  agreed it reads as more machine-learning-flavoured than this classical
+  pipeline calls for; out of scope, not just deferred.
 - **Lost vs in-hole policy:** conservative, implemented in
   `src/core/tracking.ts`'s `Tracker`. A vanished blob is only called
   `OCCLUDED_IN_HOLE` on strong evidence (within `holeProximityRadiusFactor`
