@@ -863,6 +863,28 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                   >
                     Reuse this layout on other videos
                   </button>
+                  {templateName && templateName !== video.name && (
+                    <button
+                      type="button"
+                      title={`Replace this video's centre, ring, hole positions, hole radius, and target with the layout saved from ${templateName} -- for when the rig genuinely didn't move between recordings and you want every video scored against identical geometry, not just an identical global threshold.`}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Replace this video's own layout with the one saved from ${templateName}? Any hand-nudged holes here will be lost.`,
+                          )
+                        ) {
+                          return
+                        }
+                        void loadRoiTemplate().then((template) => {
+                          if (!template) return
+                          setRoi({ ...template.roi, source: 'template' })
+                          setStatus(`Layout copied from ${template.sourceVideoName}, replacing this video's own. Check it against this video.`)
+                        })
+                      }}
+                    >
+                      Copy layout from {templateName}
+                    </button>
+                  )}
                 </div>
               </div>
             </>
