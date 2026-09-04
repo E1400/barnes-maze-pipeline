@@ -316,6 +316,27 @@ was wrong about it, what the tell was, how you caught it.
     `npm run typecheck` (`tsc -b`) from here on, documented in CLAUDE.md's
     Commands section so it isn't relearned next session.
 
+17. **A performance "fix" would have quietly changed real behaviour, caught
+    by re-reading the code being replaced rather than trusting the
+    rewrite.** Investigating why `test50` tracking felt close to 10 minutes,
+    a first hypothesis (per-frame buffer allocation) was checked with a real
+    benchmark and turned out to be nearly worthless -- a 1.03x speedup,
+    reported honestly rather than shipped as if it were the fix. The real
+    cost, found by timing each pipeline stage separately, was the
+    morphology step's `reduce` callback being invoked ~6 million times per
+    frame. Rewriting it to inline the comparison, an early draft set the
+    "outside the image" fill value to `1` for erosion, reasoning that a
+    boundary pixel shouldn't be forced to shrink just because the edge is
+    unknown. That reasoning sounded fine on its own -- and was wrong: the
+    *actual* original code passed `0` as `outside` for both erode and
+    dilate, confirmed by going back and re-reading the exact pre-existing
+    call sites rather than re-deriving what they "should" do. Shipping the
+    `1` would have been a real, silent behaviour change riding along with a
+    speed fix -- the tell was deliberately checking old-code-vs-new-
+    reasoning before trusting a plausible-sounding justification for a
+    number I'd just invented. Fixed by using the literal original constant;
+    caught before any commit, not after.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
@@ -854,3 +875,30 @@ fixes) both still fully explain the report, and this branch being
 deliberately unmerged per Elvis's own instruction is a concrete, checkable
 reason the second one could be true right now — reported both directly
 rather than inventing something new to sound more certain.
+
+**Tracking performance (this branch).** Did not trust a plausible-sounding
+first guess: "buffer allocation is probably the cost" was checked with a
+real benchmark (a throwaway Vitest file measuring 2000 real `detect()`
+calls on a 640x480 frame, reused vs. fresh detector instance) before
+touching the pipeline's actual algorithm, and it measured a 1.03x
+speedup — close to nothing. Reported that null result rather than shipping
+the buffer-reuse work alone as "the fix." Found the real cost by timing
+absDiff/applyMask/otsuThreshold/binarize/open/connectedComponents
+separately on the same benchmark: `open()` (morphology) was 87.7% of the
+whole per-frame cost. Fixed by inlining the min/max comparison instead of
+calling it as a callback per neighbour, verified three ways before calling
+it done: the full existing CV test suite (34 tests, unchanged) still
+passed; a new test cross-checks the rewritten filter against an
+independently-written naive reference on pseudo-random content (not just
+the clean geometric shapes the other tests use); and a real re-track of
+`test50` in an actual browser measured 120.1s end to end, down from a
+328s baseline measured earlier in this same session under the same
+conditions. Also caught and fixed a real automation problem, not a product
+bug, while generating `demo-outputs/`: this machine ran low on free memory
+(observed directly — `vm_stat` showed under 40MB free at one point) and
+the headless browser's renderer crashed and silently reloaded mid-track
+more than once, losing the in-progress job. Diagnosed by checking system
+memory directly rather than assuming an app bug, freed memory by closing
+redundant browser/dev-server processes, and made the generation script
+resilient to a lost job (detect it, re-select the video, re-click Track)
+so a future re-run isn't fragile to the same thing recurring.

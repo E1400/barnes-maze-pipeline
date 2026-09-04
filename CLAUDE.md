@@ -254,6 +254,62 @@ just change code silently, when a decision changes.
   waiting for them — ~1.7 GB of raw grayscale for `test50`'s 5539 frames.
   Decoding twice keeps memory bounded to a couple of frames at a time, at a
   real but accepted time cost (roughly 2x a single decode pass).
+- **Tracking speed: ~2.7x real end-to-end improvement (2026-09-04),
+  `src/core/cv/detector.ts` + `morphology.ts`.** Elvis reported real
+  tracking runs feeling close to 10 minutes for `test50`, too slow for a
+  2-3 minute demo video that has to include loading and tracking on camera.
+  Investigated with a real per-frame benchmark before guessing at a fix
+  (a throwaway Vitest file, not committed): a **first hypothesis --
+  per-frame buffer allocation/GC churn -- was checked and was wrong.**
+  `TypeScriptDetector` used to allocate ~8 fresh full-frame buffers
+  (~3MB) on every `detect()` call; giving it reusable scratch buffers
+  (`image.ts`'s `absDiff`/`applyMask`, `threshold.ts`'s `binarize`,
+  `morphology.ts`'s `erode`/`dilate`/`open`, and `components.ts`'s
+  `connectedComponents` all gained an optional trailing `out` parameter,
+  defaulting to a fresh allocation so every existing caller and test is
+  unaffected) measured as only a **1.03x** speedup -- a real, honest null
+  result, reported as such rather than kept quiet or presented as the fix.
+  Stage-by-stage timing on a real 640x480 frame then found the actual
+  answer: `open()` (erode + dilate, the tail-stripping morphology step)
+  was **87.7% of the entire per-frame cost** (44ms of ~51ms) -- not the
+  O(radius) algorithm itself, but `filterSeparable`'s per-neighbour
+  `reduce: (a, b) => number` callback being invoked roughly 20 times per
+  pixel (2 passes x 2xradius neighbours), ~6 million indirect calls per
+  frame. Inlining the min/max comparison (two code paths instead of a
+  callback parameter) and short-circuiting the moment a 0/1 mask value
+  already forces the answer (an eroding window can stop at its first 0,
+  a dilating one at its first 1) cut that stage from 44ms to 8.7ms/frame
+  on the same benchmark -- **4.2x on the CV computation itself**, and a
+  measured **120.1s** real end-to-end re-track of `test50` in a real
+  browser (down from this session's own measured 328s baseline, and from
+  Elvis's reported ~10 minutes) -- **~2.7x real-world**, the CV-only ratio
+  diluted somewhat by decode/Worker overhead that this change doesn't
+  touch. Verified as behaviour-preserving, not just faster: the full
+  existing test suite (which already exercises masked/unmasked, varied
+  content, and a shared reused detector instance across many `it()`
+  blocks) passed unchanged, plus two new tests -- a reused-instance
+  adversarial sequence (masked animal-present frame immediately followed
+  by an empty unmasked one, checking no stale buffer value leaks through)
+  and a byte-for-byte cross-check of the rewritten `filterSeparable`
+  against an independently-written naive reference on pseudo-random
+  content touching every edge and corner, not just the tidy geometric
+  shapes the existing tests use. **Caught one real bug by hand-tracing
+  before it shipped:** an early draft set the morphology "outside the
+  image" fill value to `1` for erosion on the theory that boundary pixels
+  shouldn't be forced to shrink -- but the *original* code used `0` for
+  both erode and dilate (verified by re-reading the pre-existing call
+  sites, not assumed), and changing it would have been a real behaviour
+  change disguised as a speed fix. `open()` is still the single largest
+  remaining cost even after this fix (65.2% of a now much smaller total)
+  -- a true O(1)-per-pixel min/max filter (a monotonic-deque/van Herk
+  approach) would cut it further, left as a known next step rather than
+  attempted in this pass. **Not yet built, and deliberately not attempted
+  without checking in first:** "the second video is faster to process
+  than the first, because the tool learned something from the first" (the
+  brief's own "what good looks like" framing) is a different, bigger kind
+  of speedup -- cross-video reuse of e.g. the background model or detection
+  parameters -- and is out of scope for this fix, which only makes any one
+  video's own tracking pass faster.
 - **Lost vs in-hole policy:** conservative, implemented in
   `src/core/tracking.ts`'s `Tracker`. A vanished blob is only called
   `OCCLUDED_IN_HOLE` on strong evidence (within `holeProximityRadiusFactor`
