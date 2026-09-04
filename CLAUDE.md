@@ -714,6 +714,91 @@ just change code silently, when a decision changes.
   confirmed correct investigation counts, correct CSV row counts, the
   never-reached marker firing exactly where expected, and the per-video
   selector actually re-rendering the heatmap/raster on switch.
+- **Every visualization is downloadable as SVG and PNG (2026-09-04,
+  Elvis's feedback), `src/io/chartExport.ts`.** Each chart is a real,
+  standalone `<svg>` (the cohort-comparison chart was rebuilt from CSS bars
+  into SVG specifically so it has one too, for consistency with the other
+  three), so `downloadSvgFile` just serializes and downloads it, and
+  `downloadSvgAsPng` rasterizes it onto an offscreen canvas at 2x scale.
+  The canvas is filled with the current `--bg` value before drawing —
+  the chart's own background is transparent so it blends into
+  `.viz-chart`'s surface on screen, but a transparent PNG would lose its
+  axis lines and text against a dark viewer, so the download needs a real
+  fill the on-screen chart doesn't. Verified with real captured downloads,
+  not just that the functions run: the SVG file starts with `<svg` and
+  declares its namespace, and the PNG file's first two bytes are the real
+  PNG signature (`\x89PNG`), for both an SVG-only chart (occupancy heatmap)
+  and the newly-SVG cohort comparison.
+- **Learning curve got a real y-axis (2026-09-04, Elvis's feedback: "add a
+  y axis... at the bottom").** It had axis *lines* before but no scale —
+  a viewer could see one trial took longer than another but not by how
+  much. `niceTickStep` (`VisualizationsPanel.tsx`) picks a round
+  1/2/5×10ⁿ step for the busiest trial's latency rather than an arbitrary
+  quarter-fraction, so labels read "0s, 2s, 4s..." instead of "0s, 2.3s,
+  4.6s...". Dashed gridlines at each tick, plus a rotated "Latency (s)"
+  axis title, so the axis is legible on its own without cross-referencing
+  the legend paragraph below it.
+- **Step 3's heading bar was misaligned against steps 2 and 4 (2026-09-04,
+  Elvis's feedback: "slide over the step 3 title bar so its in line").**
+  Root cause: `.roi` (step 2) and `.review-workspace` (step 4) both break
+  out of `#root`'s narrower 60rem reading width to a wider, independently
+  centred `min(90rem, 100vw - 5rem)` (documented above, 2026-09-03) because
+  those two screens are edit-heavy and want real width; `.tracking`
+  (step 3) never got the same treatment since its own content — a status
+  line and a button — never needed the extra width. But sitting at the
+  narrower left edge between two sections at the wider one reads as
+  misaligned down the page regardless of whether step 3's *content* needs
+  the space. Fixed by giving `.tracking` the identical breakout — its
+  content doesn't fill the width, and doesn't need to; only the heading
+  bar's left edge needed to match. Verified by measuring all three
+  headings' `getBoundingClientRect().left` in a real browser: identical
+  (40px) after the fix, previously different.
+- **"Copy layout from X" (2026-09-04), `RoiEditor.tsx`, answers a real
+  question Elvis raised: if every video's platform is physically the same
+  92cm, shouldn't the hole-investigation criteria already be identical
+  across videos?** They already are, in the sense that matters most: the
+  investigation threshold (`proximityRadiusFactor`, `minFrames`) is a
+  single *global* setting applied to every video (see the 2026-09-03
+  bullet above), not something re-chosen per clip. What can legitimately
+  differ per video is the *pixel* geometry that global factor is applied
+  to — `holeRadius` and `platformRadius` in px, and therefore the px→cm
+  scale — because each video's own camera framing/zoom/distance is its
+  own independent measurement, even filming the same physical rig, and
+  ROI detection or manual placement adds its own small variance on top.
+  So the criterion is one number everywhere; the cm figure it works out to
+  for a given video can still differ slightly, correctly, because it's a
+  derived quantity. "Reuse this layout on other videos" already let a
+  saved layout seed a video that had *no* ROI yet, but Elvis's actual
+  videos are already all defined, so that path never applied to them. Added
+  a second, explicit "Copy layout from {name}" action, available whenever
+  a template exists and the current video already has its own layout,
+  confirmed via `window.confirm` since it discards this video's own
+  centre/ring/holes/target/nudges — for the case where the rig genuinely
+  didn't move between recordings and Elvis wants every video scored
+  against literally identical pixel geometry, not just an identical
+  factor. Verified in a real browser: seeded two videos with deliberately
+  different hole radii (14px, 22px), saved the first as the template,
+  confirmed the button only appears once a video already has its own
+  layout and a differently-named template exists, and confirmed clicking
+  it actually changed the second video's hole radius to match the first's
+  exactly (22 → 14).
+- **Investigated Elvis's report that all three sample videos still
+  classify Random, again.** The investigation-grouping fix (2026-09-03)
+  and the nose-smoothing fix (2026-09-04, this branch) were both verified
+  against real re-tracked data in this session and both produced the
+  expected result (`test50` → Serial). The one variable this session
+  cannot control or observe: **this branch is deliberately unmerged**
+  (Elvis's own instruction, "dont merge new branch yet"), so if Elvis is
+  testing the deployed GitHub Pages site or a `main` checkout rather than
+  `feat/tracker-smoothing-viz` directly, none of this branch's tracking
+  changes are live there yet — that alone would fully explain seeing the
+  pre-fix behavior. Separately, even on this branch, IndexedDB caches a
+  video's track from whenever it was last tracked; investigations and
+  search strategy recompute live from that *stored* track on every load,
+  so loading or reloading the page is not the same as re-tracking, and a
+  video tracked before either fix will keep showing pre-fix numbers until
+  it is explicitly re-tracked. Reported both conditions back to Elvis
+  directly rather than guessing at a third explanation.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   the global investigation threshold, manual investigation edits, manual
   measure overrides, the global default platform diameter) — a refresh must

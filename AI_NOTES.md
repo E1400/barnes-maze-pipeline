@@ -806,3 +806,29 @@ all 30 e2e tests (the same suite, same three real sample clips) passed in
 2.8 minutes on GitHub's runner, vs. repeated local timeouts on the same
 tests. Not silently waved off either way: written down here, and worth
 revisiting if it ever recurs *in CI* rather than only locally.
+
+**Chart downloads, learning-curve axis, step-3 alignment, and "copy layout"
+(this branch, continued).** Verified all four small tweaks together in one
+real-browser pass, seeding two schema-accurate synthetic videos with
+deliberately different hole radii (14px, 22px) so the layout-copy fix had
+something real to distinguish. Measured `getBoundingClientRect().left` on
+all three of steps 2/3/4's `<h2>` headings directly rather than eyeballing
+a screenshot -- 40px, 40px, 40px, confirming genuine pixel alignment, not
+just "looks close." Captured a real SVG download and a real PNG download
+and checked their actual bytes (`<svg` + namespace for the former, the
+`\x89PNG` file signature for the latter) rather than trusting that
+`canvas.toBlob` didn't throw. Clicked "Copy layout from synthA.mp4" on
+synthB (deliberately seeded with a different hole radius) and confirmed its
+hole-radius input changed from 22 to 14 -- the actual mechanism Elvis asked
+for ("a way to make them all the exact same"), not just a button that
+exists. Re-ran `roi.spec.ts` (12 tests, all real ROI-editor interactions,
+none touch tracking so this was cheap -- 14s total) after the `RoiEditor.tsx`
+changes and it stayed green.
+
+On Elvis's "still seeing all three videos classified Random": did not
+propose a third hypothesis without new evidence. The two already on record
+(stale cached track data; testing a build that doesn't have this branch's
+fixes) both still fully explain the report, and this branch being
+deliberately unmerged per Elvis's own instruction is a concrete, checkable
+reason the second one could be true right now — reported both directly
+rather than inventing something new to sound more certain.
