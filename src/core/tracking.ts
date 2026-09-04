@@ -47,20 +47,12 @@ export interface TrackerParams {
   readonly shrinkFractionRequired: number
   /** How many recent tracked frames to look back over for the shrink check. */
   readonly shrinkWindowFrames: number
-  /**
-   * A gap shorter than this many frames is bridged for display (position
-   * held at the last known point) while still being reported as LOST, never
-   * silently treated as tracked. Sized in the state, not hidden in a value
-   * used downstream, per the brief's requirement that gap-filling be visible.
-   */
-  readonly maxBridgedGapFrames: number
 }
 
 export const DEFAULT_TRACKER_PARAMS: TrackerParams = {
   holeProximityRadiusFactor: 1.5,
   shrinkFractionRequired: 0.25,
   shrinkWindowFrames: 5,
-  maxBridgedGapFrames: 3,
 }
 
 export interface HoleRoi {

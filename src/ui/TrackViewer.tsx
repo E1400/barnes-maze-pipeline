@@ -72,6 +72,31 @@ export default function TrackViewer({ video, roi, review }: Props) {
     [drag, pointFromEvent, review],
   )
 
+  // Keyboard alternative to dragging: each point circle is independently
+  // focusable (native Tab order), and arrow keys nudge whichever one has
+  // focus -- the same accessibility gap the ROI editor's hole nudging
+  // already closed for step 2, closed here for step 4 (nothing essential
+  // should be reachable only by drag).
+  const onPointKeyDown = useCallback(
+    (kind: 'centroid' | 'nose') => (event: React.KeyboardEvent<SVGCircleElement>) => {
+      if (!current || current.state !== 'TRACKED') return
+      const point = kind === 'centroid' ? current.centroid : current.nose
+      if (!point) return
+      const step = event.shiftKey ? 10 : 1
+      const moves: Record<string, [number, number]> = {
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+      }
+      const move = moves[event.key]
+      if (!move) return
+      event.preventDefault()
+      review.setCorrection({ x: point.x + move[0], y: point.y + move[1] }, kind)
+    },
+    [current, review],
+  )
+
   const onSvgClick = useCallback(
     (event: React.MouseEvent<SVGSVGElement>) => {
       if (drag || !effective) return
@@ -177,26 +202,30 @@ export default function TrackViewer({ video, roi, review }: Props) {
                 cx={current.centroid.x}
                 cy={current.centroid.y}
                 r={8}
+                tabIndex={0}
                 className={`correction-point${current.isCorrected ? ' correction-point--manual' : ''}`}
                 onPointerDown={(event) => {
                   event.stopPropagation()
                   setDrag('centroid')
                 }}
+                onKeyDown={onPointKeyDown('centroid')}
               >
-                <title>Drag to correct the body position</title>
+                <title>Body position. Drag to correct it, or focus and use the arrow keys (Shift = 10px).</title>
               </circle>
               {current.nose && (
                 <circle
                   cx={current.nose.x}
                   cy={current.nose.y}
                   r={5}
+                  tabIndex={0}
                   className={`correction-point correction-point--nose${current.isCorrected ? ' correction-point--manual' : ''}`}
                   onPointerDown={(event) => {
                     event.stopPropagation()
                     setDrag('nose')
                   }}
+                  onKeyDown={onPointKeyDown('nose')}
                 >
-                  <title>Drag to correct the nose position</title>
+                  <title>Nose position. Drag to correct it, or focus and use the arrow keys (Shift = 10px).</title>
                 </circle>
               )}
             </g>
@@ -209,6 +238,13 @@ export default function TrackViewer({ video, roi, review }: Props) {
             </text>
           )}
         </svg>
+      )}
+
+      {current?.state === 'TRACKED' && (
+        <p className="hint">
+          Tab to the body or nose point, then use the arrow keys to correct it (Shift = 10px) —
+          dragging is not the only way.
+        </p>
       )}
 
       <FrameScrubber
