@@ -107,6 +107,18 @@ a {
 /* Deliberately the most visually prominent thing in step 1, right after the
    dropzone -- pixel measurements are not publishable, and this is the one
    number every downstream measure depends on (see CLAUDE.md). */
+.sample-callout {
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
+.sample-callout p {
+  margin: 0 0 0.5rem;
+}
+
 .calibration-callout {
   margin-top: 1rem;
   padding: 0.875rem 1rem;
@@ -789,6 +801,14 @@ a {
   stroke: #000000;
   stroke-width: 1.5;
   cursor: crosshair;
+}
+
+/* Each correction point is independently focusable (Tab), and arrow keys
+   nudge it -- a keyboard alternative to dragging, not just a drag target
+   that happens to also accept focus. */
+.correction-point:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .correction-point--nose {

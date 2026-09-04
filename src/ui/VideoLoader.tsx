@@ -29,6 +29,25 @@ function isVideoFile(file: File): boolean {
   return file.type.startsWith('video/') || /\.(mp4|m4v|mov|avi|webm|mkv)$/i.test(file.name)
 }
 
+// The three take-home sample clips, fetched client-side straight from the
+// public repo they live in -- so a cold-open reviewer sees the tool doing
+// something real within the brief's own 60-second bar, without needing to
+// separately download and drag in three files first. Not committed to this
+// repo (the brief asks submissions to link to the source rather than copy
+// the clips in); this fetches the same bytes `scripts/fetch-sample-videos.sh`
+// does, at demo time, from the browser rather than a build step. Confirmed
+// raw.githubusercontent.com sends `Access-Control-Allow-Origin: *` on these
+// files, so a plain client-side `fetch` works from any origin.
+const SAMPLE_BASE_URL = 'https://raw.githubusercontent.com/salk-airc/rse-takehome-2026/main/data/barnes-maze'
+const SAMPLE_NAMES = ['test50.mp4', 'test51.mp4', 'test53.mp4'] as const
+
+async function fetchSampleFile(name: string): Promise<File> {
+  const response = await fetch(`${SAMPLE_BASE_URL}/${name}`)
+  if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`)
+  const blob = await response.blob()
+  return new File([blob], name, { type: 'video/mp4' })
+}
+
 function formatDuration(seconds: number): string {
   const whole = Math.floor(seconds)
   const minutes = Math.floor(whole / 60)
@@ -67,6 +86,7 @@ export default function VideoLoader({
   const [trackedVideoIds, setTrackedVideoIds] = useState<Set<string>>(new Set())
   const [defaultDiameterCm, setDefaultDiameterCm] = useState<number | null>(null)
   const [investigationParams, setInvestigationParams] = useState<InvestigationParams | null>(null)
+  const [loadingSamples, setLoadingSamples] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -115,7 +135,7 @@ export default function VideoLoader({
     }
   }, [videos, trackingRefreshToken])
 
-  const addFiles = useCallback(async (fileList: FileList | null) => {
+  const addFiles = useCallback(async (fileList: FileList | readonly File[] | null) => {
     if (!fileList || fileList.length === 0) return
     const files = Array.from(fileList)
     const rejected: string[] = []
@@ -162,6 +182,23 @@ export default function VideoLoader({
       `${stored.length} video${stored.length === 1 ? '' : 's'} loaded and saved in this browser.`,
     )
   }, [])
+
+  const loadSampleVideos = useCallback(async () => {
+    setLoadingSamples(true)
+    setErrors([])
+    setStatus('Downloading the three sample videos from the take-home repo…')
+    try {
+      const files = await Promise.all(SAMPLE_NAMES.map(fetchSampleFile))
+      await addFiles(files)
+    } catch (error) {
+      setErrors([
+        `Could not download the sample videos (${(error as Error).message}). You can still download them yourself and drag them in above.`,
+      ])
+      setStatus('')
+    } finally {
+      setLoadingSamples(false)
+    }
+  }, [addFiles])
 
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -220,6 +257,16 @@ export default function VideoLoader({
           Videos stay on this machine. Nothing is uploaded, and they are saved
           in this browser so a reload does not lose them.
         </p>
+      </div>
+
+      <div className="sample-callout">
+        <p>
+          Don&rsquo;t have the sample videos handy? Load the three from the take-home repo
+          directly — nothing to download and drag in by hand.
+        </p>
+        <button type="button" onClick={() => void loadSampleVideos()} disabled={loadingSamples}>
+          {loadingSamples ? 'Downloading…' : 'Load the 3 sample videos (test50, test51, test53)'}
+        </button>
       </div>
 
       <div className="calibration-callout">
