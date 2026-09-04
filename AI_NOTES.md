@@ -800,5 +800,9 @@ worker path at all (`git diff main --stat`: only `tracking.ts`,
 variable load at the moment (this session already had an orphaned dev
 server left running on another port, among other things) -- a pre-existing
 margin problem in the test suite's timeout, not something this branch
-introduced. Not silently waved off: written down here, and worth revisiting
-if it recurs consistently rather than intermittently.
+introduced. Confirmed directly, not just inferred: pushed the branch and
+checked the real CI run rather than trusting the local diagnosis alone --
+all 30 e2e tests (the same suite, same three real sample clips) passed in
+2.8 minutes on GitHub's runner, vs. repeated local timeouts on the same
+tests. Not silently waved off either way: written down here, and worth
+revisiting if it ever recurs *in CI* rather than only locally.
