@@ -95,9 +95,11 @@ A six-step workflow, all in the browser, all reachable without a terminal:
 2. **Check the maze layout** — opening a video runs classical detection
    (platform edge, all 20 holes, centre, rotation) and proposes the whole
    ring with zero clicks; drag or nudge anything that's off, mark the target
-   hole, and enter the platform diameter to calibrate real-world units. A
-   layout can be copied onto another video that should be geometrically
-   identical, so a facility films the same rig once and reuses it.
+   hole (or check "N/A" for a trial where the mouse never escapes — a real,
+   final answer, distinct from nobody having looked yet), and enter the
+   platform diameter to calibrate real-world units. A layout can be copied
+   onto another video that should be geometrically identical, so a facility
+   films the same rig once and reuses it.
 3. **Track the animal** — pure-TypeScript classical computer vision
    (background subtraction, connected components, PCA for a nose/tail axis)
    runs entirely client-side in a Web Worker, with a live progress bar. No
@@ -112,9 +114,15 @@ A six-step workflow, all in the browser, all reachable without a terminal:
 5. **Export** — CSV and XLSX, both a combined cohort file and a per-video
    download, one tidy row per trial plus one row per hole-investigation
    event. Every row carries the detection threshold and the tool version
-   that produced it.
-6. **Visualize** — an occupancy heatmap, a hole-visit timeline, a cohort
-   learning curve, and a cohort comparison, all downloadable as SVG or PNG.
+   that produced it. A custom-column builder lets you type a formula over
+   the computed fields (e.g. `totalErrors / pathLengthCm`) and download it
+   as its own spreadsheet, without opening Excel.
+6. **Visualize** — scoped to whichever video is currently selected: an
+   occupancy heatmap, a hole-visit timeline, a cohort learning curve, a
+   cohort comparison, a custom-metric scatter plot (the same formula syntax
+   as step 5's custom column, for exploring a relationship between any two
+   derived measures), and a two-group cohort-statistics comparison
+   (Mann-Whitney U) — all downloadable as SVG or PNG where applicable.
 
 ## What I chose not to build, and why
 
@@ -163,6 +171,25 @@ float. Every latency measure is computed from those per-frame times, not from
 `index / fps`, and the loader shows the per-file jitter instead of hiding it.
 Measured ground truth and the reasoning: [`docs/timebase-findings.md`](docs/timebase-findings.md).
 
+## Accessibility
+
+Every screen is keyboard-operable, not just mouse-driven: the ROI editor's
+holes, ring handle, and platform boundary are all independently focusable
+and nudgeable with arrow keys (Shift = 10px) as an explicit alternative to
+dragging, and the review workspace's position-correction points work the
+same way. No control relies on color alone to carry meaning — tracking
+states, corrected-vs-automatic points, occlusion-vs-proximity investigation
+evidence, and the target hole are all distinguished by shape, stroke
+weight, or text as well, so the app reads correctly in grayscale. Every
+input has a real, associated `<label>` (verified by the video-file input
+and the platform-diameter field specifically, since those are the two most
+load-bearing controls in step 1). 200% browser zoom was verified directly
+with a real Chromium zoom (not just relative units and an assumption it
+would hold up) — that check caught a real bug, a page-level horizontal
+scrollbar caused by the loaded-videos table at a narrow enough effective
+width, fixed by confining that overflow to the table's own scroll
+container instead of letting it leak to the page.
+
 ## Known limitations
 
 Distinguishing real defects from deliberate scope decisions (the latter are
@@ -195,10 +222,6 @@ right, or don't work yet, not things left out on purpose.
 - **No portable project file** (see "What I chose not to build" — listed
   again here because it's the closest thing to an actual defect against the
   brief's explicit ask, not purely a scope choice).
-- **200% browser zoom has not been explicitly verified.** The layout uses
-  relative units and the two edit-heavy screens (ROI editor, review
-  workspace) already break out to a wider column, which should hold up, but
-  this hasn't been tested at 200% zoom on a real browser and confirmed.
 - **The re-encoded sample clips are lower quality than the originals**
   (traded off deliberately by the brief's authors to keep the repo small and
   seekable — see `data/barnes-maze/README.md`). Not observed to matter for
