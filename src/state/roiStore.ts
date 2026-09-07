@@ -14,7 +14,7 @@ import {
   STORE_SETTINGS,
 } from './schema.ts'
 import type { StoredDefaultDiameter, StoredRoi, StoredRoiTemplate } from './schema.ts'
-import { roiCompleteness, type RoiDefinition } from '../core/roi.ts'
+import { roiCompleteness, setPlatformDiameterCm, type RoiDefinition } from '../core/roi.ts'
 import { openDatabase } from './videoStore.ts'
 
 function runTransaction<T>(
@@ -59,7 +59,28 @@ export async function loadRoi(
   )
   if (!record) return null
   // Records written before pins existed simply have none.
-  return { roi: record.roi, pins: [...(record.pins ?? [])] }
+  const pins = [...(record.pins ?? [])]
+
+  // Self-heals a layout saved with no platform diameter -- either from
+  // before a global default existed, or from a since-fixed auto-detection
+  // race (see AI_NOTES). This used to live only in RoiEditor's mount
+  // effect, which only ever ran when a human reopened that specific
+  // video's ROI editor -- so a cohort-wide reader (useCohortData, and
+  // therefore Export/Visualizations/cohort statistics) could keep reading
+  // a stale null diameter for a video nobody had revisited since the fix
+  // shipped, even though step 4 showed a healed number for whichever
+  // video *was* currently open. Centralizing it here means every caller of
+  // loadRoi gets the healed value, and it's persisted immediately so this
+  // only ever needs to run once per video.
+  if (record.roi.platformDiameterCm === null) {
+    const defaultDiameterCm = await loadDefaultPlatformDiameterCm()
+    if (defaultDiameterCm !== null) {
+      const healed = setPlatformDiameterCm(record.roi, defaultDiameterCm)
+      await saveRoi(videoId, healed, pins)
+      return { roi: healed, pins }
+    }
+  }
+  return { roi: record.roi, pins }
 }
 
 export function deleteRoi(videoId: string): Promise<undefined> {

@@ -20,14 +20,18 @@
 import { useMemo, useRef, useState } from 'react'
 import { frameTimeSeconds } from '../core/timebase.ts'
 import { computeOccupancyGrid } from '../core/occupancyGrid.ts'
+import { evaluateFormula, formulaVariables, parseFormula } from '../core/formula.ts'
 import { groupConsecutiveInvestigations } from '../core/investigationEdits.ts'
 import type { SearchStrategyLabel } from '../core/searchStrategy.ts'
+import { buildTrialRow, FORMULA_VARIABLES, type TrialRow } from '../io/exportRows.ts'
 import { downloadSvgAsPng, downloadSvgFile } from '../io/chartExport.ts'
 import CohortStatsPanel from './CohortStatsPanel.tsx'
 import { useCohortData, type CohortVideo } from './useCohortData.ts'
 
 interface Props {
   readonly trackingRefreshToken: number
+  /** The video currently selected in step 1 -- step 6 is scoped to it. */
+  readonly selectedVideoId: string
 }
 
 const STRATEGY_LABEL: Record<SearchStrategyLabel, string> = {
@@ -395,10 +399,204 @@ function CohortComparison({ cohort }: { cohort: readonly CohortVideo[] }) {
   )
 }
 
-export default function VisualizationsPanel({ trackingRefreshToken }: Props) {
-  const { videos: cohort, loading } = useCohortData(trackingRefreshToken)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = cohort.find((v) => v.video.id === selectedId) ?? cohort[0] ?? null
+type FormulaFieldResult = { readonly values: ReadonlyMap<string, number | null> } | { readonly error: string }
+
+function evaluateFormulaField(
+  text: string,
+  trialRows: readonly { readonly name: string; readonly trial: TrialRow }[],
+): FormulaFieldResult {
+  if (text.trim() === '') return { error: 'Enter a formula.' }
+  const node = parseFormula(text)
+  if ('error' in node) return { error: node.error }
+  const unknown = formulaVariables(node).filter((name) => !FORMULA_VARIABLES.includes(name as keyof TrialRow))
+  if (unknown.length > 0) return { error: `Unknown field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}` }
+  const values = new Map<string, number | null>()
+  for (const { name, trial } of trialRows) {
+    values.set(name, evaluateFormula(node, trial as unknown as Record<string, number | null>))
+  }
+  return { values }
+}
+
+/**
+ * Lets a reviewer plot any two derived metrics against each other -- the
+ * same field names and formula syntax as the export step's "Custom column"
+ * (src/core/formula.ts), reused here as a second, independent input rather
+ * than shared live state with ExportPanel: the two panels already each do
+ * their own IndexedDB pass (see useCohortData's own doc comment), and a
+ * formula typed in step 5 works unchanged if retyped here, which is what
+ * actually matters for "explore a relationship" rather than the two
+ * controls being wired together.
+ */
+function CustomMetricPlot({ cohort }: { cohort: readonly CohortVideo[] }) {
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [xFormula, setXFormula] = useState('pathLengthCm')
+  const [yFormula, setYFormula] = useState('totalErrors')
+
+  const trialRows = useMemo(
+    () =>
+      cohort.map((v) => ({
+        name: v.video.name,
+        trial: buildTrialRow(v.video.name, v.video.timebase, v.roi, v.measures, v.strategy, v.investigationParams),
+      })),
+    [cohort],
+  )
+
+  const plot = useMemo(() => {
+    const x = evaluateFormulaField(xFormula, trialRows)
+    const y = evaluateFormulaField(yFormula, trialRows)
+    if ('error' in x) return { error: x.error }
+    if ('error' in y) return { error: y.error }
+    const points: { readonly name: string; readonly x: number; readonly y: number }[] = []
+    let excluded = 0
+    for (const { name } of trialRows) {
+      const xv = x.values.get(name) ?? null
+      const yv = y.values.get(name) ?? null
+      if (xv === null || yv === null) {
+        excluded++
+        continue
+      }
+      points.push({ name, x: xv, y: yv })
+    }
+    return { points, excluded }
+  }, [xFormula, yFormula, trialRows])
+
+  if ('error' in plot) {
+    return (
+      <div className="viz-chart">
+        <div className="formula-builder">
+          <label>
+            X axis formula
+            <input type="text" value={xFormula} onChange={(e) => setXFormula(e.target.value)} />
+          </label>
+          <label>
+            Y axis formula
+            <input type="text" value={yFormula} onChange={(e) => setYFormula(e.target.value)} />
+          </label>
+        </div>
+        <p className="hint" role="alert">
+          {plot.error}
+        </p>
+        <p className="hint">
+          Available fields: {FORMULA_VARIABLES.join(', ')}. Supports +, -, *, /, and parentheses.
+        </p>
+      </div>
+    )
+  }
+
+  const width = 520
+  const height = 360
+  const left = 64
+  const top = 16
+  const right = 20
+  const bottom = 40
+  const plotWidth = width - left - right
+  const plotHeight = height - top - bottom
+
+  const xValues = plot.points.map((p) => p.x)
+  const yValues = plot.points.map((p) => p.y)
+  const xMax = Math.max(1e-9, ...xValues)
+  const xMin = Math.min(0, ...xValues)
+  const yMax = Math.max(1e-9, ...yValues)
+  const yMin = Math.min(0, ...yValues)
+  const xTickStep = niceTickStep(xMax - xMin, 4)
+  const yTickStep = niceTickStep(yMax - yMin, 4)
+  const xAxisMax = Math.ceil(xMax / xTickStep) * xTickStep
+  const yAxisMax = Math.ceil(yMax / yTickStep) * yTickStep
+  const xTicks = Array.from({ length: Math.round(xAxisMax / xTickStep) + 1 }, (_, i) => i * xTickStep)
+  const yTicks = Array.from({ length: Math.round(yAxisMax / yTickStep) + 1 }, (_, i) => i * yTickStep)
+
+  const xFor = (v: number) => left + (v / (xAxisMax || 1)) * plotWidth
+  const yFor = (v: number) => top + plotHeight - (v / (yAxisMax || 1)) * plotHeight
+
+  return (
+    <div className="viz-chart">
+      <div className="formula-builder">
+        <label>
+          X axis formula
+          <input type="text" value={xFormula} onChange={(e) => setXFormula(e.target.value)} />
+        </label>
+        <label>
+          Y axis formula
+          <input type="text" value={yFormula} onChange={(e) => setYFormula(e.target.value)} />
+        </label>
+      </div>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        role="img"
+        aria-label={`Scatter plot of ${yFormula} against ${xFormula}, one point per tracked video`}
+      >
+        <rect x={0} y={0} width={width} height={height} className="viz-chart-bg" />
+        {yTicks.map((v) => (
+          <g key={`y-${v}`}>
+            <line x1={left} y1={yFor(v)} x2={left + plotWidth} y2={yFor(v)} className="viz-gridline" />
+            <text x={left - 6} y={yFor(v) + 3} textAnchor="end" className="viz-axis-label">
+              {v}
+            </text>
+          </g>
+        ))}
+        {xTicks.map((v) => (
+          <g key={`x-${v}`}>
+            <line x1={xFor(v)} y1={top} x2={xFor(v)} y2={top + plotHeight} className="viz-gridline" />
+            <text x={xFor(v)} y={top + plotHeight + 14} textAnchor="middle" className="viz-axis-label">
+              {v}
+            </text>
+          </g>
+        ))}
+        <line x1={left} y1={top} x2={left} y2={top + plotHeight} className="viz-axis-line" />
+        <line x1={left} y1={top + plotHeight} x2={left + plotWidth} y2={top + plotHeight} className="viz-axis-line" />
+        <text x={left + plotWidth / 2} y={height - 6} textAnchor="middle" className="viz-axis-label">
+          {xFormula}
+        </text>
+        <text
+          x={14}
+          y={top + plotHeight / 2}
+          textAnchor="middle"
+          className="viz-axis-label"
+          transform={`rotate(-90 14 ${top + plotHeight / 2})`}
+        >
+          {yFormula}
+        </text>
+        {plot.points.map((p) => (
+          <circle key={p.name} cx={xFor(p.x)} cy={yFor(p.y)} r={4} className="viz-point viz-point--primary">
+            <title>
+              {p.name}: {xFormula} = {p.x.toFixed(3)}, {yFormula} = {p.y.toFixed(3)}
+            </title>
+          </circle>
+        ))}
+      </svg>
+      <p className="hint">
+        {plot.points.length} video{plot.points.length === 1 ? '' : 's'} plotted
+        {plot.excluded > 0 && `, ${plot.excluded} excluded (a formula was null for ${plot.excluded === 1 ? 'it' : 'them'})`}.
+        Same field names and syntax as step 5's custom export column.
+      </p>
+      <ChartDownloadButtons svgRef={svgRef} filenameBase="cohort-custom-metric" />
+    </div>
+  )
+}
+
+export default function VisualizationsPanel({ trackingRefreshToken, selectedVideoId }: Props) {
+  const { videos: cohort, loading } = useCohortData(trackingRefreshToken, selectedVideoId)
+  const [selectedId, setSelectedId] = useState<string>(selectedVideoId)
+  // The per-video charts below default to whichever video is selected in
+  // step 1, not just "the first tracked video" -- re-synced whenever the
+  // app-level selection changes (switching videos in step 1) but otherwise
+  // left alone, so picking a different video from the dropdown below
+  // doesn't get immediately overwritten. Adjusted directly during render
+  // (React's own recommended pattern for "reset state when a prop
+  // changes") rather than in an effect -- oxlint's set-state-in-effect
+  // rule already caught this project doing the effect version once before
+  // (FrameScrubber's play/pause, see AI_NOTES) and it applies here too.
+  const [prevSelectedVideoId, setPrevSelectedVideoId] = useState(selectedVideoId)
+  if (selectedVideoId !== prevSelectedVideoId) {
+    setPrevSelectedVideoId(selectedVideoId)
+    setSelectedId(selectedVideoId)
+  }
+
+  const selected = cohort.find((v) => v.video.id === selectedId) ?? null
+  const selectedIsTracked = cohort.some((v) => v.video.id === selectedVideoId)
 
   return (
     <section aria-labelledby="viz-heading" className="viz-panel">
@@ -410,6 +608,10 @@ export default function VisualizationsPanel({ trackingRefreshToken }: Props) {
         <p className="hint">Gathering tracked videos…</p>
       ) : cohort.length === 0 ? (
         <p className="hint">No tracked videos yet. Track at least one video above first.</p>
+      ) : !selectedIsTracked ? (
+        <p className="hint">
+          This video hasn&rsquo;t been tracked yet. Track it above to see its visualizations here.
+        </p>
       ) : (
         <>
           <div className="viz-video-select">
@@ -450,7 +652,12 @@ export default function VisualizationsPanel({ trackingRefreshToken }: Props) {
             <CohortComparison cohort={cohort} />
           </div>
 
-          <CohortStatsPanel trackingRefreshToken={trackingRefreshToken} />
+          <div className="viz-card">
+            <h3>Custom metric</h3>
+            <CustomMetricPlot cohort={cohort} />
+          </div>
+
+          <CohortStatsPanel trackingRefreshToken={trackingRefreshToken} selectedVideoId={selectedVideoId} />
         </>
       )}
     </section>

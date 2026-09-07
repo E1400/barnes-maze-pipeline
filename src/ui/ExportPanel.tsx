@@ -12,27 +12,25 @@
 
 import { useMemo, useState } from 'react'
 import { evaluateFormula, formulaVariables, parseFormula } from '../core/formula.ts'
-import { buildInvestigationRows, buildQualityRow, buildTrialRow, type InvestigationRow, type QualityRow, type TrialRow } from '../io/exportRows.ts'
+import {
+  buildInvestigationRows,
+  buildQualityRow,
+  buildTrialRow,
+  FORMULA_VARIABLES,
+  type InvestigationRow,
+  type QualityRow,
+  type TrialRow,
+} from '../io/exportRows.ts'
 import { downloadInvestigationsCsv, downloadQualityCsv, downloadRowsCsv, downloadTrialsCsv, downloadWorkbook } from '../io/sheets.ts'
 import { useCohortData } from './useCohortData.ts'
 
-/** The TrialRow fields a custom formula can reference -- the numeric measures, not identifying/text fields. */
-const FORMULA_VARIABLES: readonly (keyof TrialRow)[] = [
-  'primaryLatencySeconds',
-  'totalLatencySeconds',
-  'primaryErrors',
-  'totalErrors',
-  'pathLengthCm',
-  'averageSpeedCmPerSecond',
-  'quadrant1TargetSeconds',
-  'quadrant2Seconds',
-  'quadrant3OppositeSeconds',
-  'quadrant4Seconds',
-]
+const DEFAULT_COLUMN_NAME = 'custom'
 
 interface Props {
   /** Changes whenever a tracking run finishes anywhere, prompting a rebuild. */
   readonly trackingRefreshToken: number
+  /** Passed through purely to bust useCohortData's cache on a video switch -- see that hook's own doc comment. */
+  readonly selectedVideoId?: string
 }
 
 interface VideoExport {
@@ -62,8 +60,8 @@ function fileStem(videoName: string): string {
   return videoName.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '_')
 }
 
-export default function ExportPanel({ trackingRefreshToken }: Props) {
-  const { videos: cohort, loading } = useCohortData(trackingRefreshToken)
+export default function ExportPanel({ trackingRefreshToken, selectedVideoId }: Props) {
+  const { videos: cohort, loading } = useCohortData(trackingRefreshToken, selectedVideoId)
 
   const videos: VideoExport[] = cohort.map((v) => ({
     videoId: v.video.id,
@@ -78,7 +76,15 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
   const allQuality = videos.map((v) => v.quality)
 
   const [formulaText, setFormulaText] = useState('')
-  const [columnName, setColumnName] = useState('custom')
+  // Holds exactly what the user typed, including a transient empty string
+  // while they're clearing the field -- forcing it back to a fallback name
+  // on every keystroke (the previous version did this in onChange) fights
+  // the user mid-edit, snapping the field back to "custom" the instant it
+  // empties instead of letting them type a new name. The fallback is only
+  // applied at the point of use (the preview header, the filename), not to
+  // the field's own live value.
+  const [columnName, setColumnName] = useState(DEFAULT_COLUMN_NAME)
+  const effectiveColumnName = columnName.trim() === '' ? DEFAULT_COLUMN_NAME : columnName.trim()
   const formulaResult = useMemo<FormulaResult>(() => {
     if (formulaText.trim() === '') return null
     const node = parseFormula(formulaText)
@@ -154,72 +160,6 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
           </div>
 
           <div className="export-group">
-            <h3>Custom column</h3>
-            <p className="hint">
-              Define a derived metric from the fields already computed above -- e.g.{' '}
-              <code>totalErrors / pathLengthCm</code> -- without opening Excel.
-            </p>
-            <div className="formula-builder">
-              <label>
-                Formula
-                <input
-                  type="text"
-                  value={formulaText}
-                  placeholder="e.g. totalErrors / pathLengthCm"
-                  onChange={(e) => setFormulaText(e.target.value)}
-                />
-              </label>
-              <label>
-                Column name
-                <input type="text" value={columnName} onChange={(e) => setColumnName(e.target.value || 'custom')} />
-              </label>
-            </div>
-            <p className="hint">
-              Available fields: {FORMULA_VARIABLES.join(', ')}. Supports +, -, *, /, and parentheses.
-            </p>
-
-            {formulaError !== null && (
-              <p className="hint" role="alert">
-                {formulaError}
-              </p>
-            )}
-
-            {formulaRows !== null && (
-              <>
-                <table className="export-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Video</th>
-                      <th scope="col">{columnName}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {formulaRows.map((row) => (
-                      <tr key={row.video}>
-                        <td>{row.video}</td>
-                        <td>{row.value === null ? '—' : row.value.toFixed(4)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="button-row">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadRowsCsv(
-                        formulaRows.map((row) => ({ video: row.video, [columnName]: row.value })),
-                        `barnes-maze-${fileStem(columnName)}-${timestamp()}.csv`,
-                      )
-                    }
-                  >
-                    Download column (CSV)
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="export-group">
             <h3>Per video</h3>
             <table className="export-table">
               <thead>
@@ -264,6 +204,78 @@ export default function ExportPanel({ trackingRefreshToken }: Props) {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="export-group">
+            <h3>Custom column</h3>
+            <p className="hint">
+              Generates a custom spreadsheet: one derived value per video, from a formula over the
+              fields already computed above -- e.g. <code>totalErrors / pathLengthCm</code> --
+              without opening Excel.
+            </p>
+            <div className="formula-builder">
+              <label>
+                Formula
+                <input
+                  type="text"
+                  value={formulaText}
+                  placeholder="e.g. totalErrors / pathLengthCm"
+                  onChange={(e) => setFormulaText(e.target.value)}
+                />
+              </label>
+              <label>
+                Column name
+                <input
+                  type="text"
+                  value={columnName}
+                  placeholder={DEFAULT_COLUMN_NAME}
+                  onChange={(e) => setColumnName(e.target.value)}
+                />
+              </label>
+            </div>
+            <p className="hint">
+              Available fields: {FORMULA_VARIABLES.join(', ')}. Supports +, -, *, /, and parentheses.
+            </p>
+
+            {formulaError !== null && (
+              <p className="hint" role="alert">
+                {formulaError}
+              </p>
+            )}
+
+            {formulaRows !== null && (
+              <>
+                <table className="export-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Video</th>
+                      <th scope="col">{effectiveColumnName}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {formulaRows.map((row) => (
+                      <tr key={row.video}>
+                        <td>{row.video}</td>
+                        <td>{row.value === null ? '—' : row.value.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadRowsCsv(
+                        formulaRows.map((row) => ({ video: row.video, [effectiveColumnName]: row.value })),
+                        `barnes-maze-${fileStem(effectiveColumnName)}-${timestamp()}.csv`,
+                      )
+                    }
+                  >
+                    Download spreadsheet (CSV)
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

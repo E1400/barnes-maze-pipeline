@@ -38,6 +38,26 @@ export interface TrialRow {
   readonly toolVersion: string
 }
 
+/**
+ * The TrialRow fields a custom formula (export's "Custom column", the
+ * visualizations panel's "Custom metric" plot) can reference -- the numeric
+ * measures, not identifying/text fields. Shared between the two features so
+ * a formula written in one place uses the exact same field names in the
+ * other, rather than two independently-maintained lists drifting apart.
+ */
+export const FORMULA_VARIABLES: readonly (keyof TrialRow)[] = [
+  'primaryLatencySeconds',
+  'totalLatencySeconds',
+  'primaryErrors',
+  'totalErrors',
+  'pathLengthCm',
+  'averageSpeedCmPerSecond',
+  'quadrant1TargetSeconds',
+  'quadrant2Seconds',
+  'quadrant3OppositeSeconds',
+  'quadrant4Seconds',
+]
+
 export interface InvestigationRow {
   readonly video: string
   readonly visit: number

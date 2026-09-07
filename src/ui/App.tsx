@@ -61,8 +61,11 @@ export default function App() {
             roi={roi}
             trackingJob={trackingJob}
           />
-          <ExportPanel trackingRefreshToken={trackingJob.completedCount} />
-          <VisualizationsPanel trackingRefreshToken={trackingJob.completedCount} />
+          <ExportPanel trackingRefreshToken={trackingJob.completedCount} selectedVideoId={selected.id} />
+          <VisualizationsPanel
+            trackingRefreshToken={trackingJob.completedCount}
+            selectedVideoId={selected.id}
+          />
         </>
       )}
     </main>

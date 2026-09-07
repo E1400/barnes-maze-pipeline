@@ -48,7 +48,22 @@ export interface CohortVideo {
   readonly investigationParams: InvestigationParams
 }
 
-export function useCohortData(refreshToken: number): { videos: readonly CohortVideo[]; loading: boolean } {
+/**
+ * `refreshToken` bumps on a completed tracking run; `extraKey` is an
+ * optional second cache-busting input for state this hook has no other way
+ * to notice changed -- e.g. the currently-selected video id, so switching
+ * which video is open re-syncs cohort-wide data against whatever a visit to
+ * that video's own ROI editor may have just healed/persisted (a stale
+ * platform diameter healed in storage but never refetched here was a real,
+ * reported bug: comparing two videos' path length in cohort statistics kept
+ * treating an already-healed video as still missing its diameter, because
+ * this hook only recomputed on a fresh tracking run, not on a ROI change
+ * made while switching videos in between).
+ */
+export function useCohortData(
+  refreshToken: number,
+  extraKey?: string,
+): { videos: readonly CohortVideo[]; loading: boolean } {
   const [videos, setVideos] = useState<readonly CohortVideo[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -99,7 +114,7 @@ export function useCohortData(refreshToken: number): { videos: readonly CohortVi
     return () => {
       cancelled = true
     }
-  }, [refreshToken])
+  }, [refreshToken, extraKey])
 
   return { videos, loading }
 }

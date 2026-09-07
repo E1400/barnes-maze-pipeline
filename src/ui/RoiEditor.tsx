@@ -123,30 +123,16 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
     }
   }, [video.id])
 
-  // Restore any saved layout and pins.
+  // Restore any saved layout and pins. A layout saved with no platform
+  // diameter is self-healed inside loadRoi() itself (state/roiStore.ts),
+  // not here -- centralized so every reader of a stored ROI gets the
+  // healed value, not just whichever video's editor happens to be open.
   useEffect(() => {
     let cancelled = false
-    void loadRoi(video.id).then(async (stored) => {
+    void loadRoi(video.id).then((stored) => {
       if (cancelled || !stored) return
       setRoi(stored.roi)
       setPins(stored.pins)
-      // Self-heals a layout saved with no platform diameter -- either from
-      // before a global default existed, or from the auto-detection race
-      // fixed elsewhere in this file (see AI_NOTES): that fix stops a *new*
-      // layout from being created with a null diameter, but doesn't touch
-      // one that was already saved that way, and re-tracking a video never
-      // touches its ROI at all. Without this, "this should never happen"
-      // stayed true forever for any video whose layout predated the fix.
-      if (stored.roi.platformDiameterCm === null) {
-        const defaultDiameterCm = await loadDefaultPlatformDiameterCm()
-        if (!cancelled && defaultDiameterCm !== null) {
-          setRoi((current) =>
-            current && current.platformDiameterCm === null
-              ? setPlatformDiameterCm(current, defaultDiameterCm)
-              : current,
-          )
-        }
-      }
     })
     void loadRoiTemplate().then((template) => {
       if (!cancelled) setTemplateName(template?.sourceVideoName ?? null)

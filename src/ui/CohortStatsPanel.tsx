@@ -40,10 +40,12 @@ function formatNumber(value: number, digits = 2): string {
 
 interface Props {
   readonly trackingRefreshToken: number
+  /** Passed through purely to bust useCohortData's cache on a video switch -- see that hook's own doc comment. */
+  readonly selectedVideoId?: string
 }
 
-export default function CohortStatsPanel({ trackingRefreshToken }: Props) {
-  const { videos: cohort, loading } = useCohortData(trackingRefreshToken)
+export default function CohortStatsPanel({ trackingRefreshToken, selectedVideoId }: Props) {
+  const { videos: cohort, loading } = useCohortData(trackingRefreshToken, selectedVideoId)
   const [groups, setGroups] = useState<Record<string, Group>>({})
   const [measureKey, setMeasureKey] = useState<MeasureKey>('primaryLatencySeconds')
   const measure = MEASURES.find((m) => m.key === measureKey)!
