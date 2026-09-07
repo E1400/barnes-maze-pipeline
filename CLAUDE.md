@@ -1205,6 +1205,38 @@ just change code silently, when a decision changes.
   `className="calibration-callout"` with no conditional, unlike
   RoiEditor's, so step 1's most important prerequisite field looked no
   different unset than filled in.
+- **Correction points shrink while being dragged (2026-09-07),
+  `TrackViewer.tsx`.** Elvis reported the centroid/nose dots become hard to
+  place precisely once you start dragging them. The resting radius (8px
+  centroid, 5px nose) is sized for easy grabbing; while `drag` matches that
+  point's kind, it now renders much smaller (3px / 2px) so the cursor tip
+  itself becomes the precision target instead of a comparatively large
+  circle obscuring exactly where its centre is. Reverts to the resting
+  radius the moment the drag ends.
+- **Fixed releasing a correction-point drag also jumping the video to a
+  different frame (2026-09-07), `TrackViewer.tsx`.** Placing the nose dot
+  worked, but letting go immediately triggered "click the tracking path to
+  jump to that frame" -- the same interaction, since a native `click` event
+  fires on whatever's now under the pointer right after `pointerup`. The
+  click handler already guarded on `if (drag) return`, which should have
+  covered this if `drag` were reliably `null` by the time the click
+  handler's closure ran -- evidently it wasn't always, a real risk for a
+  React-state guard spanning two separately-dispatched browser events.
+  Fixed with a ref (`suppressNextClick`) set the instant a correction
+  point's own `onPointerDown` fires and cleared on the SVG's next click --
+  a ref update can't have the same render-timing gap a state read can.
+  Verified with a real simulated drag in a live browser: the frame-number
+  field was unchanged after dragging and releasing the nose point, where
+  before the fix this exact interaction jumped it.
+- **Custom-metric scatter plot gained a legend (2026-09-07),
+  `VisualizationsPanel.tsx`.** Every point was the same colour and shape,
+  so which dot belonged to which video was illegible (Elvis's feedback).
+  Rather than a per-video colour palette (which would need a new colour
+  every time a video is added, and this project avoids relying on colour
+  alone for meaning anyway), each point gets a small numbered label
+  directly on the chart plus a legend list below mapping number to video
+  name -- works identically regardless of what's plotted, since it doesn't
+  depend on the data at all, just the order points were plotted in.
 
 ## Repo layout
 

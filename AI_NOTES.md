@@ -471,6 +471,44 @@ was wrong about it, what the tell was, how you caught it.
     section) before concluding anything was broken, rather than trusting
     the first, unscoped failure.
 
+25. **A drag-then-click interaction bug, and the fix I initially reached for
+    (checking `drag` state) turned out to be unreliable.** Elvis reported
+    that placing the nose correction dot worked, but releasing it
+    immediately jumped the video to a different frame -- the same
+    interaction "click the tracking path to jump to that frame" listens
+    for. The click-jump handler already had an `if (drag) return` guard,
+    which should have covered this: `setDrag(null)` runs in the pointerup
+    handler, so by the time the subsequent native `click` event fires,
+    `drag` should already be `null`... except the guard exists specifically
+    to STOP a jump, and it wasn't stopping one, which only makes sense if
+    `drag`'s state value wasn't reliably `null` (or wasn't yet re-rendered)
+    at the moment the click handler's closure read it -- a real risk of a
+    state-based guard spanning a browser's own multi-event (pointerup, then
+    a separately-dispatched click) sequence, where React's render timing
+    isn't guaranteed to land between the two. Fixed with a ref
+    (`suppressNextClick`) set the instant a correction point's own
+    `onPointerDown` fires and cleared the next time the SVG's click handler
+    runs -- a ref update is synchronous and untouched by render batching,
+    so it can't have this timing gap. Verified with a real drag simulated
+    via `page.mouse` in a live browser (not just reasoning about event
+    order): dragging the nose point to a new position and releasing left
+    the frame-number field completely unchanged, where before the fix this
+    is exactly the interaction that jumped it.
+
+26. **The same drag-then-click fix's own verification hit a Playwright
+    coordinate mistake first.** The initial drag simulation moved the
+    mouse to the nose circle's `boundingBox()` coordinates and the drag
+    silently did nothing -- no shrink, no correction recorded. Printed the
+    actual bounding box before assuming the product was broken: `y: 2307`,
+    far below any real viewport height, because the review workspace sits
+    well down the page (after the video table, ROI editor, and tracking
+    panel) and nothing had scrolled the nose circle into view first. Fixed
+    the test with `scrollIntoViewIfNeeded()` before reading the bounding
+    box, not the product -- a reminder that `page.mouse.move/down/up`
+    coordinates are viewport-relative, and a `boundingBox()` read without
+    scrolling first can silently return real-looking numbers for an
+    off-screen element.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
