@@ -559,14 +559,33 @@ function CustomMetricPlot({ cohort }: { cohort: readonly CohortVideo[] }) {
         >
           {yFormula}
         </text>
-        {plot.points.map((p) => (
-          <circle key={p.name} cx={xFor(p.x)} cy={yFor(p.y)} r={4} className="viz-point viz-point--primary">
-            <title>
-              {p.name}: {xFormula} = {p.x.toFixed(3)}, {yFormula} = {p.y.toFixed(3)}
-            </title>
-          </circle>
+        {plot.points.map((p, i) => (
+          <g key={p.name}>
+            <circle cx={xFor(p.x)} cy={yFor(p.y)} r={4} className="viz-point viz-point--primary">
+              <title>
+                {p.name}: {xFormula} = {p.x.toFixed(3)}, {yFormula} = {p.y.toFixed(3)}
+              </title>
+            </circle>
+            <text x={xFor(p.x) + 7} y={yFor(p.y) - 6} className="viz-axis-label viz-scatter-index">
+              {i + 1}
+            </text>
+          </g>
         ))}
       </svg>
+      {/* Every point is the same colour and shape, so a plain number next to
+          each dot plus this legend is what actually says which video is
+          which -- works the same regardless of what's plotted, unlike a
+          colour-per-video scheme that would need a new palette entry every
+          time a video is added. */}
+      {plot.points.length > 0 && (
+        <ol className="viz-scatter-legend">
+          {plot.points.map((p, i) => (
+            <li key={p.name}>
+              <span className="viz-scatter-legend-index">{i + 1}</span> {p.name}
+            </li>
+          ))}
+        </ol>
+      )}
       <p className="hint">
         {plot.points.length} video{plot.points.length === 1 ? '' : 's'} plotted
         {plot.excluded > 0 && `, ${plot.excluded} excluded (a formula was null for ${plot.excluded === 1 ? 'it' : 'them'})`}.

@@ -1474,3 +1474,36 @@ a {
   font-weight: 600;
   fill: var(--text);
 }
+
+/* Custom-metric scatter plot: every point is the same colour and shape, so
+   a plain number is what actually distinguishes them -- readable in
+   greyscale, and needs no per-video colour palette that would have to grow
+   every time a video is added. */
+.viz-scatter-index {
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.viz-scatter-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.viz-scatter-legend-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
