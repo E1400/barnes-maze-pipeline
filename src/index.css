@@ -30,6 +30,22 @@
   box-sizing: border-box;
 }
 
+/* Wide content (the video table, code-like tables) already scrolls inside
+   its own overflow-x:auto container -- this is the outer guarantee that the
+   page itself never gains a second, page-level horizontal scrollbar on top
+   of that, which a narrow-enough viewport (200% browser zoom, tested
+   directly with a real Chromium zoom, not assumed) otherwise does: the
+   table's own scroll container was correctly containing the *visible*
+   overflow, but the page was still programmatically scrollable past it.
+   Set on both html and body since overflow propagation between the two
+   for the root scrolling box is inconsistent enough across engines that
+   relying on only one left window.scrollTo still able to move it in
+   testing. */
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
