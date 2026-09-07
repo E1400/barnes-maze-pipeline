@@ -854,6 +854,105 @@ just change code silently, when a decision changes.
 - **Testing:** Vitest for pure logic (timebase math, ROI geometry, event
   detection, the search-strategy classifier), Playwright for an end-to-end
   smoke test of the full workflow.
+- **Fixed the sample-video loader duplicating videos on a second click
+  (2026-09-05).** Elvis reported clicking "Load the 3 sample videos" twice
+  added six rows, not three. `videoId()` keys on name + size +
+  `lastModified`, and the `File` constructed from a freshly fetched `Blob`
+  had no explicit `lastModified` — it defaults to the moment the `File` is
+  constructed, so the same clip fetched twice got two different ids and
+  `putVideo`'s keyed `put()` never saw them as the same record. Fixed by
+  giving the constructed `File` a fixed `lastModified` (0), so every fetch
+  of the same clip produces the same id and a second click genuinely
+  replaces rather than duplicates. Verified in a real browser: clicking the
+  button twice leaves exactly 3 rows, not 6.
+- **The platform-diameter race fix only covered new layouts -- a second,
+  complementary fix self-heals ones already saved without a diameter
+  (2026-09-05).** The earlier fix (awaiting the default fresh instead of
+  racing a ref) stops a *new* ROI from being created with a null diameter,
+  but Elvis re-tested by re-running the tracker on a video whose layout
+  already existed from before the fix — and re-tracking never touches the
+  ROI at all, so the stale null diameter, and therefore blank path
+  length/speed, persisted exactly as before. Fixed with a second measure:
+  whenever a saved layout loads with `platformDiameterCm: null`, the
+  current global default is applied and persisted immediately (only if the
+  video's own field is still null by the time the default resolves, so a
+  fast manual edit in that window is never clobbered). New e2e test
+  simulates a legacy null-diameter layout through the UI itself (clear the
+  field, let it autosave, reload) rather than assuming, and confirms the
+  default fills back in on reopen.
+- **Steps 5 and 6 got the same width breakout as steps 2-4 (2026-09-05,
+  Elvis's feedback), same fix shape as step 3's alignment on 2026-09-04.**
+  `.export-panel` and `.viz-panel` had never been given the `min(90rem,
+  100vw - 5rem)` breakout the other mid-workflow steps use, so their
+  heading bars sat at `#root`'s narrower left edge. Verified the same way:
+  measuring `getBoundingClientRect().left` on all of steps 2, 5, and 6 in a
+  real browser (all 40px after the fix).
+- **A pass of wording and visual cleanup across the whole app
+  (2026-09-05, Elvis's feedback: reduce wordiness, and fix it with UI, not
+  more text, where the ask was about the workflow itself).** Concrete
+  changes, not just trims:
+  - The title/lede shortened to a single line; the sample-videos callout
+    lost its explanatory paragraph in favour of a plain labelled button
+    (`.sample-callout-label` + button, no prose); the platform-diameter
+    hint in step 1 now states its one purpose ("Converts tracked pixel
+    positions to real-world centimeters") instead of explaining the whole
+    default/override relationship, which step 2's own callout already
+    covers when it matters.
+  - The hole-investigation-threshold note in step 1 got a `--notes`
+    modifier (`.calibration-callout--notes`): no accent border, muted
+    label, because it's reference information about a step-4 setting, not
+    a step-1 task, and looked like a fourth thing to fill in alongside the
+    diameter field.
+  - The misplaced "what counts as investigating a hole" paragraph that
+    used to live under the escape-target field (a different concept --
+    *which* hole vs. *how* investigation is detected) was removed outright
+    rather than moved a third place; step 1's summary and step 4's live
+    editable threshold already cover it.
+  - **Escape-target selection made visually part of the sequence without
+    added words:** the section gets the same dashed-while-unset /
+    solid-once-set treatment the platform-diameter callout already uses,
+    plus a `·`/`✓` prefix on its own heading matching the existing Status
+    checklist's own convention -- a shape and symbol difference, not colour
+    alone, so it still reads in greyscale.
+  - The loaded-videos table gained a real bordered/rounded container
+    (`.video-table-wrap`), a tinted bold header row, and zebra striping, so
+    it reads as one distinct area rather than bare rows floating on the
+    page background.
+  - The frame scrubber's track got a visibly thicker, accent-bordered,
+    tinted-background treatment (were: thin, `--surface`-on-`--surface`,
+    easy to miss as an interactive control), plus a real play/pause button
+    at the start of the bar.
+  - Reworded (not just shortened) the step-4 keyboard-correction hint to
+    state the mouse *and* keyboard method explicitly, and the quadrant-time
+    description to lead with the readout itself rather than the assay
+    theory behind it.
+- **Frame-scrubber play/pause (2026-09-05), `FrameScrubber.tsx`.** Steps
+  one frame at a time at the clip's own real frame rate via a self-
+  rescheduling `setTimeout` keyed off the frameIndex the parent just
+  confirmed (not a raw `setInterval`, which can drift out of sync with
+  what's actually rendered once a frame takes longer than its nominal
+  slot). "Playing" is derived (`isPlaying && frameIndex < lastFrame`), not
+  a second piece of state kept in sync from inside the effect -- an
+  earlier version called `setIsPlaying(false)` synchronously inside the
+  effect on reaching the last frame and oxlint's `set-state-in-effect` rule
+  caught it immediately, correctly: the value was already fully computable
+  at render time. **Known limitation, not silently accepted:** in the ROI
+  editor specifically, each frame step is a real seek-and-draw decode
+  (`FrameSource.grabDataUrl`) -- fine for the "occasional single-frame
+  grab" it was built for, but measured in a real browser at roughly half
+  the clip's nominal rate under continuous playback (~8fps observed
+  stepping through a 14.985fps clip). Play/pause is still correct and
+  useful for reviewing a stretch of frames, just not real-time; a genuinely
+  smooth preview would need a decode pipeline this feature doesn't have.
+- **Video reordering (2026-09-05), `videoStore.ts`'s `swapVideoOrder` +
+  up/down buttons in step 1's table.** The list is sorted by `addedAt`,
+  a field never displayed anywhere as a real timestamp (confirmed by
+  grepping every read site before reusing it) -- so letting a manual
+  reorder swap two adjacent videos' `addedAt` values needed no new schema
+  field or migration, and reuses the exact sort the list already had.
+  Buttons over drag-and-drop specifically for keyboard operability, same
+  reasoning as every other drag-plus-keyboard-alternative pair in this
+  project.
 
 ## Repo layout
 

@@ -334,6 +334,48 @@ was wrong about it, what the tell was, how you caught it.
     most likely to expose the bug) -- there was no test at all for this path
     before, which is exactly how a race like this survives.
 
+18. **Fixing the race wasn't the whole fix -- Elvis re-tested and still saw
+    it.** Assumed the ref-racing fix above was complete once it shipped and
+    tested green. Elvis re-ran the tracker from scratch on an
+    already-existing video and the cards were still blank. The fix only
+    stops a *new* layout from being created with a null diameter; it does
+    nothing for a layout that was *already* saved that way before the fix
+    existed, and re-tracking never touches a video's ROI at all. The
+    lesson: "fixed the mechanism that creates the bad state" and "fixed the
+    bug for every user" are different claims, and I'd reported the first as
+    if it were the second. Added a real, separate self-heal fix (apply the
+    current default to any already-saved null-diameter layout on reopen)
+    and a second e2e test that specifically simulates a pre-existing broken
+    layout through the UI rather than assuming the first fix's test
+    coverage was enough.
+
+19. **A duplicate-loading bug traced to a default I didn't know `File` had.**
+    Elvis reported clicking "Load the 3 sample videos" twice added six rows
+    instead of leaving three. The dedup key (`videoId()`) includes the
+    file's `lastModified`, and the `File` built from a freshly fetched
+    `Blob` never had one set explicitly -- the constructor defaults it to
+    "now," so the same clip fetched a second time got a different id purely
+    because more time had passed, not because anything about the content
+    changed. Fixed with a fixed `lastModified: 0` on the constructed File.
+    Verified in a real browser, not just read the diff and assumed it was
+    right: loaded the samples, loaded them again, counted three rows both
+    times.
+
+20. **oxlint's `set-state-in-effect` rule caught a real anti-pattern before
+    it shipped, on the very first draft.** Implementing play/pause for the
+    frame scrubber, the first version called `setIsPlaying(false)`
+    synchronously inside the auto-advance effect when playback reached the
+    last frame. The linter flagged it immediately: the value was fully
+    derivable at render time (`isPlaying && frameIndex < lastFrame`), so
+    the extra state and the effect-triggered re-render were both
+    unnecessary. Restructured to a derived `effectivelyPlaying` value with
+    no second setState call, verified against a real browser run (frame
+    advances while "playing," stops and stays stopped on pause, no drift).
+    Worth remembering: `--deny-warnings` earning its keep isn't just about
+    typos and unused vars -- it also caught a real React anti-pattern this
+    session would otherwise have shipped and only found later by reading
+    the code back cold.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
