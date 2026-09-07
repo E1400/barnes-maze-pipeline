@@ -136,6 +136,11 @@ export default function TrialStats({ video, roi, effective, investigations }: Pr
 
       <div className="stat-group">
         <h4>Path</h4>
+        {roi.platformDiameterCm === null && (
+          <p className="stat-group-desc stat-group-desc--warning">
+            Platform diameter needed for this stat — set it in step 2.
+          </p>
+        )}
         <div className="stat-row">
           <NumericField
             label="Length"
