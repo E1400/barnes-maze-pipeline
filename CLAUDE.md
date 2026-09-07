@@ -1022,6 +1022,84 @@ just change code silently, when a decision changes.
   Buttons over drag-and-drop specifically for keyboard operability, same
   reasoning as every other drag-plus-keyboard-alternative pair in this
   project.
+- **Nothing past step 1 renders until a video is selected (2026-09-07),
+  `App.tsx`.** Elvis's feedback, two complaints that turned out to share one
+  fix: it wasn't obvious that clicking "Define maze" is how the pipeline
+  actually starts, since steps 2-6 (including Export and Visualizations)
+  used to render unconditionally; and Export/Visualizations specifically
+  could show combined results from videos tracked in an *earlier* session
+  the moment the page loaded, before the current session had done anything
+  -- confusing even when accurate, since it reads as output appearing from
+  nowhere. `RoiEditor`/`TrackingPanel`/`ReviewWorkspace` were already gated
+  on `selected`; `ExportPanel` and `VisualizationsPanel` moved into the same
+  `{selected && (...)}` block rather than getting their own separate
+  condition, since the underlying problem (nothing has happened yet in this
+  session) is the same one. This does not gate on the *selected* video
+  being tracked -- Export/Viz are cohort-wide by design (CLAUDE.md's
+  `useCohortData` note above) -- it only stops the absolute-first-load
+  staleness; selecting any video, tracked or not, is what un-hides them.
+- **Escape target has a real N/A state, distinct from "nobody has looked
+  yet" (2026-09-07), `roi.ts` + `RoiEditor.tsx`.** `targetHole === null`
+  used to mean two different things with no way to tell them apart: nobody
+  has scrubbed to the escape yet, or a reviewer scrubbed the whole clip and
+  the mouse genuinely never enters a hole. Added `noEscapeConfirmed:
+  boolean` to `RoiDefinition` (`markNoEscape()` sets it and clears
+  `targetHole`; `setTargetHole()` clears it the other way -- mutually
+  exclusive, same overlay-not-ambiguity shape as everywhere else in this
+  project) and a checkbox next to the target-hole field, disabling the
+  number input and showing "N/A" as its placeholder while checked.
+  `roiCompleteness`'s `hasTarget` now accepts either a real target or a
+  confirmed no-escape, so a genuinely-no-escape trial can still be marked
+  "done" at step 2 instead of permanently reading as incomplete.
+- **`.viz-card` groups a chart's heading with its chart (2026-09-06),
+  `index.css`.** Each visualization's `<h3>` used to sit outside
+  `.viz-chart`'s own bordered box with a visible gap -- harmless for a full
+  chart, but a short one (a single-video learning curve showing only its
+  "track at least two videos" placeholder text) read as an unrelated title
+  floating above an empty, disconnected box. One shared card (background +
+  border + radius) wrapping heading and chart together fixes this for every
+  visualization at once, not just the learning curve.
+- **Cohort statistics (2026-09-07), `src/core/statistics.ts` +
+  `src/ui/CohortStatsPanel.tsx`, step 6.** A two-group comparison computed
+  entirely client-side, so a facility can ask "is group A different from
+  group B" on any trial measure without exporting to R/SPSS/Prism first.
+  Mann-Whitney U, not a t-test: Barnes maze cohorts are typically small and
+  there's no reason to assume normality, and a rank-based test degrades
+  more gracefully than a t-test when that assumption is wrong. Verified
+  against hand-computed values before wiring into any UI (complete
+  separation → U=0; identical groups with ties → U=n1×n2/2 exactly).
+  Group assignment (A/B/neither, per video) is local component state, not
+  persisted -- which videos count as "control" vs. "treatment" is a framing
+  decision for a specific question, not a property of the video itself, and
+  a different question may want the same cohort split differently. Below a
+  conventional n=8-per-group threshold, the panel says so explicitly next
+  to the p-value rather than presenting a precise-looking number the normal
+  approximation can't actually back up at that sample size.
+- **Formula-builder export column (2026-09-07), `src/core/formula.ts` +
+  the "Custom column" section of `ExportPanel.tsx`, step 5.** A user can
+  type e.g. `totalErrors / pathLengthCm` and get a derived per-video column
+  without opening Excel. Deliberately not `eval`/`new Function`: the whole
+  feature only ever needs +, -, *, /, parentheses, numbers, and named
+  variables (validated against the same fields `TrialRow` actually
+  exports), so a small hand-written recursive-descent parser covers it with
+  no arbitrary-code-execution surface at all, regardless of how low the
+  real risk already is in a single-user, fully client-side tool. Division
+  by zero and a missing/unknown variable both resolve to `null` (shown as
+  "—"), matching this project's standing "a missing value is null, not a
+  guess" convention, rather than `NaN`/`Infinity` or a thrown error.
+  Downloads via a new generic `downloadRowsCsv` (`io/sheets.ts`) rather
+  than extending the fixed-shape `TrialRow` CSV path, since a user-named
+  column has no fixed shape to type against.
+  **TypeScript gotcha worth remembering:** the result type was first
+  modeled as an untagged union (`{error} | {rows} | null`) narrowed with
+  `'error' in x` / `'rows' in x`, and `tsc` reported "possibly undefined"
+  at read sites that weren't even inside a closure. Re-modeled as an
+  explicit discriminated union tagged with a literal `kind` field instead
+  of chasing the exact inference rule -- a `===` check on a literal tag is
+  the narrowing pattern TypeScript handles reliably, and the ambiguity
+  disappeared. See AI_NOTES.md for the full account, including a second,
+  unrelated gotcha caught the same day (`erasableSyntaxOnly` rejecting a
+  constructor parameter property).
 
 ## Repo layout
 

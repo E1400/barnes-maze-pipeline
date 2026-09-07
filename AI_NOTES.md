@@ -397,6 +397,29 @@ was wrong about it, what the tell was, how you caught it.
     number I'd just invented. Fixed by using the literal original constant;
     caught before any commit, not after.
 
+22. **Two real TypeScript gotchas caught by `npm run typecheck`, not assumed
+    fixed after the code "looked right."** Building the formula-builder
+    column (`src/core/formula.ts`, `src/ui/ExportPanel.tsx`), a first draft
+    used a constructor parameter property (`constructor(private readonly
+    tokens: readonly Token[]) {}`) on the parser's internal `Parser` class --
+    this project's tsconfig has `erasableSyntaxOnly` on, which rejects that
+    syntax outright (it's not erasable by a type-stripping transpiler), so it
+    failed typecheck immediately rather than silently. Separately, a
+    `formulaResult` union (`{error} | {rows} | null`) narrowed correctly with
+    `'error' in formulaResult` / `'rows' in formulaResult` guards written
+    inline, but TypeScript reported `formulaRows` as "possibly undefined"
+    at the exact points that read it -- including one that wasn't even
+    inside a closure, so the usual "narrowing doesn't cross a function
+    boundary" explanation didn't fit. Rather than spend more time chasing
+    the precise inference rule, switched to an explicit discriminated union
+    (`{kind: 'error', message} | {kind: 'ok', rows} | null`) tagged on a
+    literal `kind` field -- a `===` check on a literal tag is exactly the
+    narrowing pattern TypeScript is built to handle reliably, and the
+    ambiguity disappeared. Worth remembering next time an `'x' in y` guard
+    on an untagged object-shape union produces a confusing narrowing error:
+    a tagged discriminant is the more robust fix, not a deeper investigation
+    into why the untagged version didn't work.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
@@ -962,3 +985,45 @@ memory directly rather than assuming an app bug, freed memory by closing
 redundant browser/dev-server processes, and made the generation script
 resilient to a lost job (detect it, re-select the video, re-click Track)
 so a future re-run isn't fragile to the same thing recurring.
+
+**Cohort statistics, formula builder, step gating, and the escape-target N/A
+option (this branch).** Built the Mann-Whitney U module
+(`src/core/statistics.ts`) against hand-computed values first -- complete
+separation gives U=0, identical groups with ties give U=n1*n2/2 exactly --
+before wiring it into any UI, so a UI bug and a math bug couldn't be
+confused with each other. Verified the assembled feature set in one real
+browser pass against the production build (`npm run build` +
+`vite preview`, the same server Playwright's own config uses), seeding two
+schema-accurate synthetic tracked videos directly into IndexedDB (raw
+`indexedDB` calls matching `schema.ts`'s stores exactly, not the app's own
+store functions, since a production build has nothing importable) plus one
+real fixture (`test51.mp4`) loaded through the actual file input for the
+parts that need genuine UI interaction. Caught two real things via the
+script rather than eyeballing the app: first, an early assertion located
+the escape-target number input with `input[type="number"]` and grabbed the
+*platform diameter* field instead (it sits earlier in the sidebar) -- the
+test's own failure ("shows placeholder 'e.g. 92', not 'N/A'") was the
+signal, fixed by locating on the field's actual label ("Target hole
+number") instead of position. Second, assigning both synthetic videos to
+Mann-Whitney groups and picking "Primary latency" showed "assign at least
+one video to each group" even with both assigned -- not a bug: both
+synthetic tracks jump straight from `TRACKED` to `IN_ESCAPE_BOX` with no
+`OCCLUDED_IN_HOLE` run or nose-proximity event at the target hole first
+(the fixture's circular path never passes near any hole), and
+`primaryLatencySeconds` is genuinely null with no target-hole investigation
+to anchor it -- confirmed against the real committed `demo-outputs/trials.csv`
+(test51: primary 35.57s vs. total 36.10s, a real but small gap, meaning a
+real trial's final approach does leave a brief investigation before the
+vanish) rather than assumed. Fixed the *test* by switching its measure to
+"Total errors" (never null), not the app. Confirmed: step 1 is the only
+`.step-heading` visible before a video is selected (was previously
+unconditional showing of stale cohort data from any prior session, per the
+`App.tsx` comment); all six step headings share an identical 40px left
+edge; the N/A checkbox both disables the number input and re-enables it on
+uncheck; a valid formula produces one preview row per tracked video and an
+unknown-field formula shows an error instead of crashing; the stats panel
+lists both tracked videos, and assigning them to groups A/B produces a real
+U/p-value line with the small-sample caveat visible (n=1 each). Zero
+console errors across the whole run. `npm run typecheck`, `npm run lint`,
+and the full unit suite (240 tests) all passed before this browser pass,
+not after.
