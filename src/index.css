@@ -1206,6 +1206,81 @@ a {
   font-size: 0.8125rem;
 }
 
+.formula-builder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.formula-builder label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.formula-builder input[type='text'] {
+  min-width: 18rem;
+}
+
+/* --- Cohort statistics panel (step 6) --- */
+
+.stats-assign-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.stats-assign-table th,
+.stats-assign-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+}
+
+.stats-group-radios {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.stats-group-radios label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 400;
+}
+
+.stats-measure-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.stats-groups-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+}
+
+.stats-group-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.stats-group-summary-label {
+  font-weight: 600;
+}
+
+.stats-result {
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
 .viz-panel {
   margin-top: 2.5rem;
   /* Same breakout as steps 2-5 -- see the .export-panel comment above. */
@@ -1233,11 +1308,24 @@ a {
   gap: 1.5rem;
 }
 
-.viz-chart {
+/* Title and chart share one bordered card -- previously the h3 sat outside
+   .viz-chart's own box with a visible gap, so a short chart (a single-
+   video learning curve, say) read as unrelated floating text above an
+   unconnected box. */
+.viz-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
-  padding: 0.75rem;
+  padding: 0.875rem;
+  margin-top: 1.5rem;
+}
+
+.viz-card h3 {
+  margin-top: 0;
+}
+
+.viz-chart {
+  padding-top: 0.25rem;
 }
 
 .viz-chart svg {

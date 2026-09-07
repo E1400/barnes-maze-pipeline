@@ -34,6 +34,12 @@ export function downloadQualityCsv(rows: readonly QualityRow[], filename: string
   triggerDownload(new Blob([XLSX.utils.sheet_to_csv(sheet)], { type: 'text/csv' }), filename)
 }
 
+/** Generic CSV download for rows that don't have their own fixed shape -- currently just the custom formula column. */
+export function downloadRowsCsv(rows: readonly Record<string, unknown>[], filename: string): void {
+  const sheet = XLSX.utils.json_to_sheet(rows as Record<string, unknown>[])
+  triggerDownload(new Blob([XLSX.utils.sheet_to_csv(sheet)], { type: 'text/csv' }), filename)
+}
+
 export function downloadWorkbook(
   trialRows: readonly TrialRow[],
   investigationRows: readonly InvestigationRow[],

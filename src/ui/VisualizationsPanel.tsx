@@ -23,6 +23,7 @@ import { computeOccupancyGrid } from '../core/occupancyGrid.ts'
 import { groupConsecutiveInvestigations } from '../core/investigationEdits.ts'
 import type { SearchStrategyLabel } from '../core/searchStrategy.ts'
 import { downloadSvgAsPng, downloadSvgFile } from '../io/chartExport.ts'
+import CohortStatsPanel from './CohortStatsPanel.tsx'
 import { useCohortData, type CohortVideo } from './useCohortData.ts'
 
 interface Props {
@@ -424,18 +425,18 @@ export default function VisualizationsPanel({ trackingRefreshToken }: Props) {
 
           {selected && (
             <div className="viz-grid">
-              <div>
+              <div className="viz-card">
                 <h3>Occupancy heatmap</h3>
                 <OccupancyHeatmap video={selected} />
               </div>
-              <div>
+              <div className="viz-card">
                 <h3>Hole-visit timeline</h3>
                 <HoleVisitRaster video={selected} />
               </div>
             </div>
           )}
 
-          <div>
+          <div className="viz-card">
             <h3>Learning curve — how fast the animal escapes, trial over trial</h3>
             {cohort.length < 2 ? (
               <p className="hint">Track at least two videos to compare latency trial over trial.</p>
@@ -444,10 +445,12 @@ export default function VisualizationsPanel({ trackingRefreshToken }: Props) {
             )}
           </div>
 
-          <div>
+          <div className="viz-card">
             <h3>Cohort comparison</h3>
             <CohortComparison cohort={cohort} />
           </div>
+
+          <CohortStatsPanel trackingRefreshToken={trackingRefreshToken} />
         </>
       )}
     </section>
