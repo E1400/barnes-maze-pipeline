@@ -50,6 +50,14 @@ export default function TrackViewer({ video, roi, review }: Props) {
   const [expanded, setExpanded] = useState(true)
   const [drag, setDrag] = useState<'centroid' | 'nose' | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  // Releasing a drag fires a native `click` on whatever now sits under the
+  // pointer (the SVG background, at the point's new position) immediately
+  // after -- the same interaction the "click the path to jump to that
+  // frame" handler listens for, so placing a point used to also jump the
+  // scrubber. A ref survives the pointerup-then-click sequence regardless
+  // of whether the `drag` state itself has re-rendered by the time the
+  // click handler runs, which checking `drag` alone did not reliably do.
+  const suppressNextClick = useRef(false)
 
   const { effective, current, frameIndex, setFrameIndex, frameUrl, pins, togglePin } = review
 
@@ -99,6 +107,10 @@ export default function TrackViewer({ video, roi, review }: Props) {
 
   const onSvgClick = useCallback(
     (event: React.MouseEvent<SVGSVGElement>) => {
+      if (suppressNextClick.current) {
+        suppressNextClick.current = false
+        return
+      }
       if (drag || !effective) return
       const point = pointFromEvent(event)
       if (!point) return
@@ -201,11 +213,17 @@ export default function TrackViewer({ video, roi, review }: Props) {
               <circle
                 cx={current.centroid.x}
                 cy={current.centroid.y}
-                r={8}
+                // Shrinks while actively being dragged -- easy to grab at
+                // its resting size, but a smaller point during the drag
+                // itself gives a far more precise cursor tip to line up
+                // against the animal, instead of a big circle obscuring
+                // exactly where its centre is (Elvis's feedback).
+                r={drag === 'centroid' ? 3 : 8}
                 tabIndex={0}
                 className={`correction-point${current.isCorrected ? ' correction-point--manual' : ''}`}
                 onPointerDown={(event) => {
                   event.stopPropagation()
+                  suppressNextClick.current = true
                   setDrag('centroid')
                 }}
                 onKeyDown={onPointKeyDown('centroid')}
@@ -216,11 +234,12 @@ export default function TrackViewer({ video, roi, review }: Props) {
                 <circle
                   cx={current.nose.x}
                   cy={current.nose.y}
-                  r={5}
+                  r={drag === 'nose' ? 2 : 5}
                   tabIndex={0}
                   className={`correction-point correction-point--nose${current.isCorrected ? ' correction-point--manual' : ''}`}
                   onPointerDown={(event) => {
                     event.stopPropagation()
+                    suppressNextClick.current = true
                     setDrag('nose')
                   }}
                   onKeyDown={onPointKeyDown('nose')}
