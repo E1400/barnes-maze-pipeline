@@ -1100,6 +1100,111 @@ just change code silently, when a decision changes.
   disappeared. See AI_NOTES.md for the full account, including a second,
   unrelated gotcha caught the same day (`erasableSyntaxOnly` rejecting a
   constructor parameter property).
+- **Platform-diameter self-heal centralized into `loadRoi()` itself
+  (2026-09-07), `state/roiStore.ts`.** The original self-heal (2026-09-05,
+  AI_NOTES mistake 18) lived only inside `RoiEditor`'s mount effect, so it
+  only ever reached whichever video's editor a human happened to reopen --
+  a cohort-wide reader (`useCohortData`, behind Export/Visualizations/
+  cohort statistics) calls `loadRoi()` directly and never went through
+  that effect, so it kept seeing a stale null diameter for any video
+  nobody had revisited since the fix shipped. Real, reported consequence:
+  comparing two videos' path length in cohort statistics reported one as
+  "skipped" even though both showed a real path length elsewhere in the
+  tool. `loadRoi()` now heals and persists inline whenever it reads a
+  record with `platformDiameterCm: null` and a global default exists, so
+  every caller gets the healed value uniformly; `RoiEditor`'s own effect
+  simplified accordingly since it no longer needs to do this itself.
+- **`useCohortData` gained an optional second cache-busting key
+  (2026-09-07), `src/ui/useCohortData.ts`.** Its effect used to depend only
+  on `trackingRefreshToken` (bumped when a tracking *run* completes), but
+  `ExportPanel`/`VisualizationsPanel`/`CohortStatsPanel` don't remount when
+  the selected video changes (unlike `RoiEditor`/`TrackingPanel`/
+  `ReviewWorkspace`, which do via `key`), so a ROI healed by switching to
+  that video's editor -- see the bullet above -- never triggered a refetch
+  in an already-mounted cohort-wide panel. Threading the currently-selected
+  video id through as `extraKey` means switching which video is open (the
+  same action that triggers the heal) also busts this cache, without
+  needing a broader pub-sub mechanism for ROI changes in general.
+- **Step 6 scoped to the currently-selected video (2026-09-07),
+  `VisualizationsPanel.tsx`.** Previously the per-video charts (occupancy,
+  hole-visit timeline) defaulted to `cohort[0]` -- the first *tracked*
+  video by load order -- regardless of which video was actually open in
+  step 1, so switching to a different, untracked video could still show
+  charts for an unrelated one. Elvis's call: if the currently-selected
+  video isn't tracked, step 6 should show nothing (not another video's
+  data); once it is tracked, the per-video charts default to it, with the
+  dropdown still available to switch to a different tracked video's charts
+  on request. The per-video dropdown's default is re-synced whenever the
+  app-level selection changes (adjusted directly during render, React's
+  recommended pattern for "reset state on a prop change" -- oxlint's
+  `set-state-in-effect` rule caught an effect-based first draft, same rule
+  that caught the FrameScrubber play/pause case earlier in this project)
+  but otherwise left alone, so picking a different video from the dropdown
+  itself isn't immediately overwritten. Cohort-wide charts (learning
+  curve, cohort comparison, cohort statistics, the custom-metric plot) sit
+  behind the same single gate rather than their own separate condition --
+  simpler, and matches the same "nothing until this video's own work is
+  done" logic as the step-1-selection gate above.
+- **"Custom metric" scatter plot (2026-09-07), `VisualizationsPanel.tsx`'s
+  `CustomMetricPlot`.** Lets a reviewer plot any two derived metrics
+  against each other to explore a relationship, reusing the exact formula
+  syntax and field list from the export step's "Custom column"
+  (`core/formula.ts`, `FORMULA_VARIABLES` -- moved to `io/exportRows.ts`
+  and exported so both features read the same list rather than two
+  independently-maintained copies drifting apart). Deliberately a second,
+  independent input rather than literally shared state with `ExportPanel`:
+  the two panels already each do their own IndexedDB pass by design (see
+  `useCohortData`'s own doc comment on that simplification), and a formula
+  typed in step 5 produces the identical value if retyped here, which is
+  what actually matters for "explore a relationship" -- the controls being
+  wired together wasn't the part Elvis's request needed.
+- **Export panel reordered and its "Custom column" input fixed
+  (2026-09-07), `ExportPanel.tsx`.** "Custom column" moved below "Per
+  video" so the two download-oriented cards ("All videos combined", "Per
+  video") sit adjacent, per Elvis's feedback. Separately, the column-name
+  field used to force its value back to `'custom'` inside `onChange`
+  whenever the field was empty (`e.target.value || 'custom'`) -- fighting
+  the user mid-edit, snapping back to "custom" the instant they cleared it
+  to type a new name, and visibly perturbing the live preview table's
+  header on every keystroke. Fixed by letting the field hold exactly what
+  was typed, including a transient empty string, and applying the
+  `'custom'` fallback only at the point of use (the preview header, the
+  downloaded filename) via a separate `effectiveColumnName`.
+- **Row highlighting in the step-1 video table was a real no-op
+  (2026-09-07), `index.css`.** `.selected-row`'s background
+  (`var(--surface)`) was byte-identical to `.video-table-wrap`'s own
+  background -- the "highlight" changed nothing visible for an odd row and
+  merely erased the zebra tint for an even one. Caught by comparing
+  `getComputedStyle` backgrounds of a selected vs. unselected row in a real
+  browser rather than trusting the class was doing something because it
+  existed. Fixed with a real accent tint plus a left inset border (a shape
+  difference, not colour alone), scoped under `.video-table` so its
+  specificity beats the existing `:nth-child(even)` zebra rule.
+- **Sample-video loading is now idempotent by name, not by relying on a
+  fetched File's derived id (2026-09-07), `VideoLoader.tsx`.** The
+  previous fix (`lastModified: 0` on the constructed `File`, AI_NOTES
+  mistake 19) was reported as still duplicating on a second click.
+  Rather than chase why the id might occasionally differ, made the button
+  itself skip fetching any sample name already present in the table --
+  guarantees no duplicate regardless of id computation, and only fetches
+  whichever of the three (if any) are actually missing. Deliberately
+  scoped to the three known sample names only: a user's own uploaded
+  videos keep the existing, more permissive dedup-by-content behaviour in
+  `addFiles`, since duplicate user uploads are expected to be allowed
+  (Elvis's explicit distinction).
+- **TrialStats notes when the platform diameter is missing (2026-09-07),
+  `TrialStats.tsx`.** Path length and average speed are legitimately
+  `null` until a video's platform diameter is calibrated, but showing a
+  bare "—" with no explanation reads as a bug, not an unmet prerequisite
+  (Elvis: "make sure most users dont skip that step"). Added a plain-
+  language note directly on the Path stat group when
+  `roi.platformDiameterCm === null`. Also fixed step 1's own diameter
+  callout, which had never actually applied the existing dashed/solid
+  `--unset` modifier RoiEditor's equivalent callout already used --
+  confirmed by grep that VideoLoader's callout always rendered as
+  `className="calibration-callout"` with no conditional, unlike
+  RoiEditor's, so step 1's most important prerequisite field looked no
+  different unset than filled in.
 
 ## Repo layout
 

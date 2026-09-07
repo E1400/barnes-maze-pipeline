@@ -420,6 +420,57 @@ was wrong about it, what the tell was, how you caught it.
     a tagged discriminant is the more robust fix, not a deeper investigation
     into why the untagged version didn't work.
 
+23. **The platform-diameter self-heal from an earlier session (mistake 18)
+    was itself incomplete -- it only reached whichever video's ROI editor a
+    human happened to reopen, not every stale record.** Elvis reported
+    comparing two videos' path length in cohort statistics and being told
+    one was "skipped" even though both showed a real path length elsewhere
+    in the tool. Reproduced with a real seeded scenario rather than guessing
+    (two schema-accurate videos in IndexedDB, one with `platformDiameterCm:
+    null`) and traced it in two layers, not one: (1) the self-heal added in
+    mistake 18 lived entirely inside `RoiEditor`'s own mount effect --
+    correct for whichever video's editor is currently open, but a cohort-
+    wide reader (`useCohortData`, used by Export/Visualizations/cohort
+    statistics) calls `loadRoi()` directly and never went through that
+    effect at all, so it kept seeing the stale null diameter for any video
+    nobody had reopened step 2 for. Fixed by moving the heal into
+    `loadRoi()` itself (`state/roiStore.ts`) so every caller gets it, not
+    just the one component that happened to have the fix bolted onto it.
+    (2) Even after that, the bug *still reproduced* in testing -- because
+    `useCohortData`'s effect only re-runs on `trackingRefreshToken`, which
+    only changes when a tracking *run* completes. A ROI healed (and
+    persisted) by switching to that video's editor doesn't touch that
+    token, so `ExportPanel`/`VisualizationsPanel`/`CohortStatsPanel` --
+    none of which remount when the selected video changes, unlike
+    `RoiEditor`/`TrackingPanel`/`ReviewWorkspace` -- kept showing whatever
+    cohort snapshot they'd already fetched once, from before the heal.
+    Fixed by giving `useCohortData` a second, optional cache-busting key
+    and threading the currently-selected video id into it from all three
+    call sites, so switching which video is open (the same action that
+    triggers the heal) also forces a refetch. Verified end to end with a
+    real seeded scenario rather than just reasoning about the code: set no
+    global default, confirmed step 4 shows a plain-language "platform
+    diameter needed" note for the null-diameter video; set the default,
+    reselected that video (forcing a fresh `loadRoi`), confirmed the note
+    disappeared; then confirmed cohort statistics no longer reports it as
+    skipped and actually renders a Mann-Whitney result comparing path
+    length across both videos. The lesson from mistake 18 -- "fixed the
+    mechanism that creates the bad state" and "fixed the bug for every
+    user" are different claims -- applied a second time here, one layer
+    deeper than the first fix reached.
+
+24. **A test's own selector, not the product, was briefly the thing wrong.**
+    Verifying that step 1's platform-diameter callout turns solid once a
+    default is set, an assertion counted every `.calibration-callout--unset`
+    on the page and failed even though step 1's own callout was correctly
+    solid -- RoiEditor (step 2) has an *unrelated* callout with the same
+    class name for that specific video's own diameter, and the currently-
+    open video's ROI hadn't been reloaded yet at that point in the test (a
+    later step in the same script does exactly that, deliberately, to test
+    the heal). Confirmed by scoping the selector to `.loader` (step 1's own
+    section) before concluding anything was broken, rather than trusting
+    the first, unscoped failure.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
@@ -1027,3 +1078,38 @@ U/p-value line with the small-sample caveat visible (n=1 each). Zero
 console errors across the whole run. `npm run typecheck`, `npm run lint`,
 and the full unit suite (240 tests) all passed before this browser pass,
 not after.
+
+**Sample-video dedup, row highlighting, step-6 scoping, the diameter
+self-heal fix, export reorg, and the custom-metric plot (this branch).**
+Elvis reported six separate issues in one message; verified each with a
+real, seeded browser scenario rather than reasoning about the diff alone,
+in one batched pass against the production build. Two of the six turned
+out to require real root-cause work, not just the fix Elvis's own
+phrasing suggested:
+- Sample dedup: rather than trust that fetching the same bytes twice
+  produces the same `videoId()`, made the sample-load button check by
+  *name* against the already-loaded table before fetching anything --
+  verified by clicking it twice in a row and counting exactly 3 rows,
+  each sample name appearing once.
+- Row highlighting: `.selected-row`'s CSS (`background: var(--surface)`)
+  turned out to be byte-identical to the table wrapper's own background --
+  a real, silent no-op that had shipped without anyone noticing, since
+  nothing ever asserted the two backgrounds actually differed. Fixed and
+  confirmed via `getComputedStyle` comparison in a real browser, not by
+  reading the CSS and assuming a color-mix tint would obviously show up.
+- Step 6 scoping and the diameter self-heal both needed genuine
+  architecture changes, not just a UI tweak -- see mistakes 23 and 24
+  above for the full account (`useCohortData`'s cache-busting key,
+  `loadRoi()`'s centralized heal).
+- Export reorder, the custom-column-name input fix, and the new custom-
+  metric scatter plot were all verified as real interactions (typed
+  formulas, deleted every character of a column name and confirmed the
+  field held the empty string instead of snapping back, read the actual
+  DOM order of the three export cards) rather than assumed correct from
+  the diff.
+Full pass: 23 assertions, all passing, zero console errors, against a real
+seeded scenario (two tracked videos -- one healthy, one with a legacy null
+diameter -- plus a third loaded-but-untracked video for the step-6 empty
+state) rather than synthetic unit-level checks alone, since every one of
+these six reports was itself a UI/integration behavior no unit test could
+have caught.
