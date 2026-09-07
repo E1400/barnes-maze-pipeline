@@ -20,6 +20,7 @@ import { angleFrom, nearestHoleIndex, ringFromClicks, type Point } from '../core
 import {
   DEFAULT_HOLE_COUNT,
   createRoi,
+  markNoEscape,
   nudgeHole,
   regenerateRing,
   roiCompleteness,
@@ -785,10 +786,17 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                 </label>
               </div>
 
-              <div className={`roi-section roi-section--target ${roi.targetHole === null ? 'roi-section--target-unset' : 'roi-section--target-set'}`}>
+              <div
+                className={`roi-section roi-section--target ${
+                  roi.targetHole !== null || roi.noEscapeConfirmed
+                    ? 'roi-section--target-set'
+                    : 'roi-section--target-unset'
+                }`}
+              >
                 <h3>
-                  {roi.targetHole === null ? '·' : '✓'} Escape target
+                  {roi.targetHole !== null || roi.noEscapeConfirmed ? '✓' : '·'} Escape target
                 </h3>
+                <p className="hint">Scrub to where the mouse escapes to find the target hole.</p>
                 <label>
                   Target hole number
                   <input
@@ -796,7 +804,8 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                     min={1}
                     max={roi.holes.length}
                     value={roi.targetHole === null ? '' : roi.targetHole + 1}
-                    placeholder="none"
+                    placeholder={roi.noEscapeConfirmed ? 'N/A' : 'none'}
+                    disabled={roi.noEscapeConfirmed}
                     title="Or select a hole below and press T."
                     onChange={(event) => {
                       const raw = event.target.value
@@ -810,6 +819,16 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                       }
                     }}
                   />
+                </label>
+                <label className="roi-no-escape">
+                  <input
+                    type="checkbox"
+                    checked={roi.noEscapeConfirmed}
+                    onChange={(event) =>
+                      setRoi(event.target.checked ? markNoEscape(roi) : setTargetHole(roi, null))
+                    }
+                  />
+                  N/A — the mouse never escapes in this clip
                 </label>
               </div>
 

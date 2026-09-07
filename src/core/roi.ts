@@ -22,6 +22,14 @@ export interface RoiDefinition {
   readonly nudgedHoles: readonly number[]
   /** Index into `holes`, or null until the user marks the escape hole. */
   readonly targetHole: number | null
+  /**
+   * True once a human has confirmed the animal never enters any hole in
+   * this clip -- a real, final answer for a trial with no escape, distinct
+   * from `targetHole` simply being null because nobody has looked yet.
+   * Mutually exclusive with `targetHole` being set: `setTargetHole` clears
+   * this, and `markNoEscape` clears `targetHole`.
+   */
+  readonly noEscapeConfirmed: boolean
   /** Physical platform diameter in cm, typed in by the user. */
   readonly platformDiameterCm: number | null
   /** Radius of an individual hole, in pixels. Proposed by detection. */
@@ -47,6 +55,7 @@ export function createRoi(
     holes: generateHoleRing(ring),
     nudgedHoles: [],
     targetHole: null,
+    noEscapeConfirmed: false,
     platformDiameterCm: null,
     holeRadius: options.holeRadius ?? DEFAULT_HOLE_RADIUS,
     source: options.source ?? 'manual',
@@ -143,7 +152,18 @@ export function setTargetHole(roi: RoiDefinition, index: number | null): RoiDefi
   if (index !== null && (index < 0 || index >= roi.holes.length)) {
     throw new RangeError(`No hole at index ${index}`)
   }
-  return { ...roi, targetHole: index }
+  return { ...roi, targetHole: index, noEscapeConfirmed: false }
+}
+
+/**
+ * Records a real, final decision -- reviewed the clip, the animal never
+ * enters any hole -- as distinct from `targetHole` being null because
+ * nobody has looked yet. Search-strategy classification and target-relative
+ * measures already treat a null `targetHole` as "not orientable," which is
+ * exactly correct here too; this flag only changes what the UI shows.
+ */
+export function markNoEscape(roi: RoiDefinition): RoiDefinition {
+  return { ...roi, targetHole: null, noEscapeConfirmed: true }
 }
 
 export function setPlatformDiameterCm(
@@ -170,7 +190,7 @@ export function roiCompleteness(roi: RoiDefinition | null): {
   isComplete: boolean
 } {
   const hasRing = roi !== null && roi.holes.length > 0
-  const hasTarget = roi?.targetHole !== null && roi?.targetHole !== undefined
+  const hasTarget = (roi?.targetHole !== null && roi?.targetHole !== undefined) || roi?.noEscapeConfirmed === true
   const hasScale = roi !== null && roiPixelsPerCm(roi) !== null
   return { hasRing, hasTarget, hasScale, isComplete: hasRing && hasTarget && hasScale }
 }

@@ -12,6 +12,7 @@ function makeRoi(): RoiDefinition {
     holes: [],
     nudgedHoles: [],
     targetHole: null,
+    noEscapeConfirmed: false,
     platformDiameterCm: 20,
     holeRadius: 10,
     source: 'manual',

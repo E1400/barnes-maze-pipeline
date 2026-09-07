@@ -30,6 +30,7 @@ function makeRoi(overrides: Partial<RoiDefinition> = {}): RoiDefinition {
     holes: HOLES,
     nudgedHoles: [],
     targetHole: 0,
+    noEscapeConfirmed: false,
     platformDiameterCm: 20, // platformRadius 100px == 10cm radius -> 10 px/cm
     holeRadius: 10,
     source: 'manual',

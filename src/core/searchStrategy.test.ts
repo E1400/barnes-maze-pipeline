@@ -21,6 +21,7 @@ function makeRoi(targetHole: number | null = 0): RoiDefinition {
     holes: HOLES,
     nudgedHoles: [],
     targetHole,
+    noEscapeConfirmed: false,
     platformDiameterCm: 20,
     holeRadius: 10,
     source: 'manual',

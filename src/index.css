@@ -356,6 +356,14 @@ a {
   border: 1px solid var(--accent);
 }
 
+.roi-no-escape {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.625rem;
+  font-size: 0.9375rem;
+}
+
 .roi-toolbar {
   display: flex;
   flex-wrap: wrap;
