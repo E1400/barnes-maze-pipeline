@@ -242,8 +242,7 @@ export default function TrackViewer({ video, roi, review }: Props) {
 
       {current?.state === 'TRACKED' && (
         <p className="hint">
-          Tab to the body or nose point, then use the arrow keys to correct it (Shift = 10px) —
-          dragging is not the only way.
+          Drag a point to correct it, or Tab to it and use the arrow keys (Shift = 10px).
         </p>
       )}
 

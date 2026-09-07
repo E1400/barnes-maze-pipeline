@@ -26,7 +26,7 @@ test('app shell loads', async ({ page }) => {
   await page.goto('./')
 
   await expect(
-    page.getByRole('heading', { name: 'Barnes Maze Analysis Pipeline', level: 1 }),
+    page.getByRole('heading', { name: 'Barnes Maze Analysis', level: 1 }),
   ).toBeVisible()
   await expect(page).toHaveTitle(/Barnes Maze Analysis Pipeline/)
 

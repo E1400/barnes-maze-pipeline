@@ -12,7 +12,7 @@
  * to the same handful of moments repeatedly.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { frameTimeSeconds, type Timebase } from '../core/timebase.ts'
 
 interface Props {
@@ -44,6 +44,24 @@ export default function FrameScrubber({
   onTogglePin,
 }: Props) {
   const lastFrame = timebase.frameCount - 1
+  const [isPlaying, setIsPlaying] = useState(false)
+  // Derived, not a second piece of state: reaching the last frame while
+  // playing should show a "play" icon again without a setState call from
+  // inside the effect below (which would trigger an extra render for
+  // something render itself can already tell).
+  const effectivelyPlaying = isPlaying && frameIndex < lastFrame
+
+  // Advances one frame at a time at the clip's own real frame rate, rather
+  // than a raw setInterval that can drift out of sync with what's actually
+  // rendered -- each tick schedules exactly the next one, keyed off the
+  // frameIndex the parent just confirmed. A manual scrub is just a normal
+  // frameIndex update this effect reacts to like any other tick.
+  useEffect(() => {
+    if (!effectivelyPlaying) return
+    const fps = timebase.nominalFps.numerator / timebase.nominalFps.denominator
+    const id = setTimeout(() => onFrameChange(frameIndex + 1), 1000 / fps)
+    return () => clearTimeout(id)
+  }, [effectivelyPlaying, frameIndex, timebase, onFrameChange])
 
   // The box holds a draft only while the user is typing in it; the rest of the
   // time it simply shows the current frame. Adjusting during render (rather
@@ -71,6 +89,23 @@ export default function FrameScrubber({
 
   return (
     <div className="scrubber">
+      <div className="scrubber-bar">
+      <button
+        type="button"
+        className="scrubber-play"
+        aria-label={effectivelyPlaying ? 'Pause' : 'Play'}
+        title={effectivelyPlaying ? 'Pause' : 'Play'}
+        onClick={() => {
+          if (effectivelyPlaying) {
+            setIsPlaying(false)
+            return
+          }
+          if (frameIndex >= lastFrame) onFrameChange(0)
+          setIsPlaying(true)
+        }}
+      >
+        {effectivelyPlaying ? '⏸' : '▶'}
+      </button>
       <div className="scrubber-track">
         {/* Ticks and pins sit behind the input; the input itself stays the
             accessible, keyboard-operable control. */}
@@ -95,6 +130,7 @@ export default function FrameScrubber({
           aria-valuetext={`Frame ${frameIndex + 1} of ${timebase.frameCount}, ${formatTime(frameTimeSeconds(timebase, frameIndex))}`}
           onChange={(event) => onFrameChange(Number(event.target.value))}
         />
+      </div>
       </div>
 
       <div className="scrubber-labels" aria-hidden="true">

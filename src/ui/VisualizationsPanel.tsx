@@ -266,7 +266,7 @@ function LearningCurve({ cohort }: { cohort: readonly CohortVideo[] }) {
         width={width}
         height={height}
         role="img"
-        aria-label="Latency per video, in load order"
+        aria-label="Escape speed learning curve: time to target and to escape, per video, in load order"
       >
         <rect x={0} y={0} width={width} height={height} className="viz-chart-bg" />
         {ticks.map((seconds) => (
@@ -436,7 +436,7 @@ export default function VisualizationsPanel({ trackingRefreshToken }: Props) {
           )}
 
           <div>
-            <h3>Learning curve</h3>
+            <h3>Learning curve — how fast the animal escapes, trial over trial</h3>
             {cohort.length < 2 ? (
               <p className="hint">Track at least two videos to compare latency trial over trial.</p>
             ) : (

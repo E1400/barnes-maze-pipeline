@@ -113,10 +113,14 @@ a {
   border: 1px dashed var(--border);
   border-radius: 0.5rem;
   background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.sample-callout p {
-  margin: 0 0 0.5rem;
+.sample-callout-label {
+  font-weight: 700;
 }
 
 .calibration-callout {
@@ -151,6 +155,19 @@ a {
    greyscale, a colour alone doesn't. */
 .calibration-callout--unset {
   border-style: dashed;
+}
+
+/* Reference info, not a step-1 task -- no accent border (nothing here needs
+   input), and the label reads as a note rather than an instruction, so it
+   doesn't look like a fourth thing to fill in alongside the diameter field. */
+.calibration-callout--notes {
+  border-color: var(--border);
+  background: transparent;
+}
+
+.calibration-callout--notes .calibration-callout-label {
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .calibration-callout .measures {
@@ -222,9 +239,16 @@ a {
   color: var(--text);
 }
 
+.video-table-wrap {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
 .video-table {
   width: 100%;
-  margin-top: 1.25rem;
   border-collapse: collapse;
   text-align: left;
 }
@@ -233,23 +257,37 @@ a {
   text-align: left;
   color: var(--text-muted);
   font-size: 0.9375rem;
-  padding-bottom: 0.5rem;
+  padding: 0.75rem 0.875rem 0.5rem;
 }
 
 .video-table th,
 .video-table td {
   border-bottom: 1px solid var(--border);
-  padding: 0.5rem 0.75rem 0.5rem 0;
+  padding: 0.5rem 0.875rem;
   vertical-align: baseline;
 }
 
 .video-table thead th {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-bottom: 2px solid var(--border);
 }
 
 .video-table tbody th {
   font-weight: 600;
+}
+
+.video-table tbody tr:last-child td,
+.video-table tbody tr:last-child th {
+  border-bottom: none;
+}
+
+.video-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 .muted {
@@ -269,8 +307,7 @@ a {
 
 /* Wide tables scroll rather than forcing the page to, which matters at 200% zoom. */
 @media (max-width: 40rem) {
-  .video-table {
-    display: block;
+  .video-table-wrap {
     overflow-x: auto;
   }
 }
@@ -299,6 +336,17 @@ a {
   border-radius: 0.5rem;
   padding: 0.75rem 0.875rem;
   margin-bottom: 0.875rem;
+}
+
+/* Same dashed-while-unset / solid-once-set language as the platform
+   diameter callout in step 1 -- marking the escape target as a real step in
+   the sequence, not just another settings box, without adding any text. */
+.roi-section--target-unset {
+  border: 2px dashed var(--accent);
+}
+
+.roi-section--target-set {
+  border: 1px solid var(--accent);
 }
 
 .roi-toolbar {
@@ -378,6 +426,11 @@ a {
 .row-actions {
   display: flex;
   gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.reorder-button {
+  padding: 0.25rem 0.5rem;
 }
 
 .selected-row {
@@ -539,9 +592,38 @@ a {
   margin-top: 0.75rem;
 }
 
+.scrubber-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.scrubber-play {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.scrubber-play:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
 .scrubber-track {
   position: relative;
   height: 2.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .scrubber-ticks,
@@ -553,7 +635,7 @@ a {
 
 .scrubber-tick {
   position: absolute;
-  top: 1.55rem;
+  top: 1.8rem;
   width: 1px;
   height: 0.5rem;
   background: var(--border);
@@ -586,17 +668,17 @@ a {
 }
 
 .scrubber-range::-webkit-slider-runnable-track {
-  height: 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 2px;
+  height: 1rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 2px solid var(--accent);
+  border-radius: 3px;
 }
 
 .scrubber-range::-moz-range-track {
-  height: 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 2px;
+  height: 1rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 2px solid var(--accent);
+  border-radius: 3px;
 }
 
 /* A thin bar, not a knob: a round thumb hides the tick it points at. */
@@ -605,7 +687,7 @@ a {
   appearance: none;
   width: 3px;
   height: 1.6rem;
-  margin-top: -0.45rem;
+  margin-top: -0.3rem;
   background: var(--text);
   border: 1px solid var(--bg);
   border-radius: 1px;
@@ -1064,6 +1146,13 @@ a {
 
 .export-panel {
   margin-top: 2.5rem;
+  /* Same breakout as steps 2-4 (Elvis's feedback: step 5's heading bar sat
+     at #root's narrower left edge while its neighbours sit at the wider
+     one, reading as misaligned down the page). */
+  width: min(90rem, calc(100vw - 5rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .export-group {
@@ -1104,6 +1193,11 @@ a {
 
 .viz-panel {
   margin-top: 2.5rem;
+  /* Same breakout as steps 2-5 -- see the .export-panel comment above. */
+  width: min(90rem, calc(100vw - 5rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .viz-panel h3 {

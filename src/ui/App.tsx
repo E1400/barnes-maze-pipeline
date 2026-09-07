@@ -26,12 +26,8 @@ export default function App() {
 
   return (
     <main>
-      <h1>Barnes Maze Analysis Pipeline</h1>
-      <p className="lede">
-        Turn a folder of Barnes maze videos into per-trial latency, error, and
-        search-strategy measures — in your browser. Nothing is uploaded: video
-        stays on your machine and the analysis runs locally.
-      </p>
+      <h1>Barnes Maze Analysis</h1>
+      <p className="lede">Video in, publishable measures out — entirely in your browser.</p>
 
       <VideoLoader
         selectedVideoId={selected?.id ?? null}

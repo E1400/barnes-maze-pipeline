@@ -55,7 +55,7 @@ test('runs entirely client-side, reports progress, and produces a plausible trac
     '741 frames processed',
     { timeout: 120_000 },
   )
-  // "Nothing is uploaded" is stated once at the top of the page, not
+  // "Nothing is uploaded" is stated once, in step 1's dropzone, not
   // repeated in every status line.
 
   // Per-state hole-visit/escape counts live in the investigation panel

@@ -154,10 +154,8 @@ export default function TrialStats({ video, roi, effective, investigations }: Pr
         <div className="stat-group">
           <h4>Quadrant time</h4>
           <p className="stat-group-desc">
-            Time spent in each quarter of the platform, oriented on the target — a standard
-            spatial-memory readout: a search biased toward quadrant 1 (the target&rsquo;s own
-            quadrant) indicates the animal remembers where the target is. Quadrant 1-4 are numbered
-            clockwise from the target; see the legend in step 2 for which is which on this video.
+            Time in each quarter, numbered clockwise from the target (quadrant 1). More time
+            there suggests the animal remembers the target&rsquo;s location. Legend in step 2.
           </p>
           <div className="stat-row">
             <NumericField
