@@ -1237,6 +1237,24 @@ just change code silently, when a decision changes.
   directly on the chart plus a legend list below mapping number to video
   name -- works identically regardless of what's plotted, since it doesn't
   depend on the data at all, just the order points were plotted in.
+- **200% zoom actually verified, and a real bug fixed (2026-09-07),
+  `index.css`.** The README had carried "200% browser zoom has not been
+  explicitly verified" as a known limitation for a while. Checked it
+  directly with a real Chromium zoom (CDP `Page.setDeviceMetricsOverride`,
+  not a CSS-transform approximation) during a full rubric review, and it
+  failed: step 1's loaded-videos table produced a genuine page-level
+  horizontal scrollbar at a narrow-enough effective width, even though the
+  table already has its own `overflow-x: auto` container -- that container
+  correctly held the *visible* overflow, but ancestor sections still
+  reported inflated `scrollWidth`, and the page remained programmatically
+  scrollable (`window.scrollTo()` could still move it) even after adding
+  `overflow-x: hidden` to `body` alone. Fixed by setting it on both `html`
+  and `body`; confirmed with a real `scrollTo` call landing back at
+  `scrollX: 0`, and separately confirmed the fix doesn't hide
+  functionality -- the table's own internal scroll still reaches its last
+  column. This is the specific finding this app now has to justify calling
+  the zoom requirement met, rather than "should hold up" reasoning about
+  relative units.
 
 ## Repo layout
 

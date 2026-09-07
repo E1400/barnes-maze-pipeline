@@ -509,6 +509,33 @@ was wrong about it, what the tell was, how you caught it.
     scrolling first can silently return real-looking numbers for an
     off-screen element.
 
+27. **A README limitation that said "not yet verified" turned out to hide a
+    real bug once actually checked.** Asked to review the whole project
+    against the rubric before submission, re-checked every item in
+    CLAUDE.md's non-negotiables list against the current app rather than
+    against what earlier sessions had documented. "200% browser zoom has
+    not been explicitly verified" was one of the README's own "Known
+    limitations" -- rather than leave it as an open question again, tested
+    it directly with a real Chromium zoom (`Page.setDeviceMetricsOverride`
+    via CDP, not a CSS-transform approximation) against a seeded tracked
+    video. It failed: the step-1 loaded-videos table produced a genuine
+    page-level horizontal scrollbar at a narrow-enough effective width,
+    even though the table already had its own `overflow-x: auto` scroll
+    container. Diagnosed by walking the DOM for every element whose
+    `scrollWidth` exceeded the viewport rather than guessing which one --
+    the table's wrapper correctly contained the *visible* overflow, but
+    ancestor sections up to `#root` still reported inflated `scrollWidth`,
+    and critically, `window.scrollTo()` could still move the page
+    horizontally even after adding `overflow-x: hidden` to `body` alone --
+    only adding it to both `html` and `body` actually stopped programmatic
+    scrolling, confirmed with a real `scrollTo` call and checking
+    `window.scrollX` came back to 0, not by trusting the CSS looked right.
+    Also confirmed the fix didn't just hide functionality: the table's own
+    internal scroll still reaches its last column/button correctly. The
+    lesson: an honestly-labeled "not yet verified" limitation is still an
+    open bug until someone actually runs the check -- writing it down as a
+    limitation is not the same as it being fine.
+
 ## Where the human overrode the model
 
 Elvis's calls that went against what Claude proposed or assumed, logged at the
