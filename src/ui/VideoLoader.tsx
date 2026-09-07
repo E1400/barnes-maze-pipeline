@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatFps, readTimebase } from '../core/timebase.ts'
-import { deleteVideo, listVideos, putVideo } from '../state/videoStore.ts'
+import { deleteVideo, listVideos, putVideo, swapVideoOrder } from '../state/videoStore.ts'
 import { deleteRoi, listDefinedVideoIds } from '../state/roiStore.ts'
 import { deleteTracks, listTrackedVideoIds } from '../state/trackStore.ts'
 import { deleteCorrections } from '../state/correctionStore.ts'
@@ -45,7 +45,13 @@ async function fetchSampleFile(name: string): Promise<File> {
   const response = await fetch(`${SAMPLE_BASE_URL}/${name}`)
   if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`)
   const blob = await response.blob()
-  return new File([blob], name, { type: 'video/mp4' })
+  // videoId() keys on name + size + lastModified, so a File with no explicit
+  // lastModified (defaulting to "now", per the File constructor) gets a
+  // different id every time this fetch runs -- clicking the button twice
+  // duplicated all three videos instead of the second click being a no-op.
+  // A fixed timestamp makes every fetch of the same clip produce the same
+  // id, so putVideo's own keyed put() replaces the existing row instead.
+  return new File([blob], name, { type: 'video/mp4', lastModified: 0 })
 }
 
 function formatDuration(seconds: number): string {
@@ -220,6 +226,11 @@ export default function VideoLoader({
     setStatus(`Removed ${video.name}.`)
   }, [])
 
+  const onMove = useCallback(async (videoId: string, neighborId: string) => {
+    await swapVideoOrder(videoId, neighborId)
+    setVideos(await listVideos())
+  }, [])
+
   return (
     <section aria-labelledby="video-loader-heading" className="loader">
       <h2 id="video-loader-heading" className="step-heading">1. Load videos</h2>
@@ -260,12 +271,9 @@ export default function VideoLoader({
       </div>
 
       <div className="sample-callout">
-        <p>
-          Don&rsquo;t have the sample videos handy? Load the three from the take-home repo
-          directly — nothing to download and drag in by hand.
-        </p>
+        <span className="sample-callout-label">Sample videos</span>
         <button type="button" onClick={() => void loadSampleVideos()} disabled={loadingSamples}>
-          {loadingSamples ? 'Downloading…' : 'Load the 3 sample videos (test50, test51, test53)'}
+          {loadingSamples ? 'Downloading…' : 'Load test50, test51, test53'}
         </button>
       </div>
 
@@ -284,23 +292,18 @@ export default function VideoLoader({
             if (value !== null && value > 0) void saveDefaultPlatformDiameterCm(value)
           }}
         />
-        <p className="hint">
-          Real-world measurements depend on this. Set it once here — every new maze layout
-          starts from it, and you can still fine-tune it per video in step 2.
-        </p>
+        <p className="hint">Converts tracked pixel positions to real-world centimeters.</p>
       </div>
 
-      <div className="calibration-callout">
-        <span className="calibration-callout-label">Hole-investigation detection</span>
+      <div className="calibration-callout calibration-callout--notes">
+        <span className="calibration-callout-label">Detection threshold (all videos)</span>
         {(() => {
           const params = investigationParams ?? DEFAULT_INVESTIGATION_PARAMS
           return (
             <p className="hint">
-              Radius factor {params.proximityRadiusFactor.toFixed(2)}× hole radius, minimum{' '}
-              {params.minFrames} frame{params.minFrames === 1 ? '' : 's'}. This is a{' '}
-              <strong>global</strong> setting shared by every video, not chosen per clip — adjust
-              it in step 4 (in real units, once a video is tracked) and it becomes the standard
-              for every video after that.
+              {params.proximityRadiusFactor.toFixed(2)}× hole radius, min{' '}
+              {params.minFrames} frame{params.minFrames === 1 ? '' : 's'} — same for every
+              video. Adjust in step 4.
             </p>
           )
         })()}
@@ -324,6 +327,7 @@ export default function VideoLoader({
       ) : videos.length === 0 ? (
         <p className="hint">No videos loaded yet.</p>
       ) : (
+        <div className="video-table-wrap">
         <table className="video-table">
           <caption>
             Loaded videos, with the frame timing read from each file’s container
@@ -342,7 +346,7 @@ export default function VideoLoader({
             </tr>
           </thead>
           <tbody>
-            {videos.map((video) => {
+            {videos.map((video, index) => {
               const isDefined = definedVideoIds.has(video.id)
               const isTracking = video.id === activeVideoId
               const isTracked = trackedVideoIds.has(video.id)
@@ -387,6 +391,24 @@ export default function VideoLoader({
                   <td data-testid="maze-status">{isDefined ? 'Defined' : 'Not defined'}</td>
                   <td data-testid="tracking-status">{trackingLabel}</td>
                   <td className="row-actions">
+                    <button
+                      type="button"
+                      className="reorder-button"
+                      disabled={index === 0}
+                      title="Move up"
+                      onClick={() => void onMove(video.id, videos[index - 1]!.id)}
+                    >
+                      ↑<span className="visually-hidden"> Move {video.name} up</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="reorder-button"
+                      disabled={index === videos.length - 1}
+                      title="Move down"
+                      onClick={() => void onMove(video.id, videos[index + 1]!.id)}
+                    >
+                      ↓<span className="visually-hidden"> Move {video.name} down</span>
+                    </button>
                     <button type="button" onClick={() => onSelectVideo(video)}>
                       {isDefined ? 'Review maze' : 'Define maze'}
                       <span className="visually-hidden"> for {video.name}</span>
@@ -400,6 +422,7 @@ export default function VideoLoader({
             })}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   )

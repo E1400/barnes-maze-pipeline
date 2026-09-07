@@ -79,3 +79,16 @@ export async function listVideos(): Promise<StoredVideoSummary[]> {
     .map(({ blob: _blob, ...summary }) => summary)
     .sort((a, b) => a.addedAt - b.addedAt)
 }
+
+/**
+ * Reorders the video list by swapping the field it's actually sorted by.
+ * `addedAt` isn't shown anywhere as a real timestamp (only ever used to
+ * order the list), so repurposing it here to also carry a user's manual
+ * reordering doesn't make anything else misleading, and needs no new
+ * schema field or migration for something this small.
+ */
+export async function swapVideoOrder(idA: string, idB: string): Promise<void> {
+  const [a, b] = await Promise.all([getVideo(idA), getVideo(idB)])
+  if (!a || !b) return
+  await Promise.all([putVideo({ ...a, addedAt: b.addedAt }), putVideo({ ...b, addedAt: a.addedAt })])
+}
