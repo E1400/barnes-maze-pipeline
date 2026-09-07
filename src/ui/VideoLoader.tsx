@@ -190,11 +190,25 @@ export default function VideoLoader({
   }, [])
 
   const loadSampleVideos = useCallback(async () => {
+    // Idempotent by name, not by relying on a fetched File's derived id
+    // matching byte-for-byte across runs: a sample clip already present in
+    // the table (by its known, fixed name) is left alone rather than
+    // re-fetched, so a second click can never add a duplicate row for it,
+    // regardless of anything about how the id happens to be computed. A
+    // user's own uploaded videos keep the normal (permissive) dedup-by-
+    // content behaviour in addFiles -- this special-cases only the three
+    // known sample names.
+    const alreadyLoaded = new Set(videos.map((v) => v.name))
+    const missing = SAMPLE_NAMES.filter((name) => !alreadyLoaded.has(name))
+    if (missing.length === 0) {
+      setStatus('The sample videos are already loaded.')
+      return
+    }
     setLoadingSamples(true)
     setErrors([])
-    setStatus('Downloading the three sample videos from the take-home repo…')
+    setStatus(`Downloading ${missing.length} sample video${missing.length === 1 ? '' : 's'} from the take-home repo…`)
     try {
-      const files = await Promise.all(SAMPLE_NAMES.map(fetchSampleFile))
+      const files = await Promise.all(missing.map(fetchSampleFile))
       await addFiles(files)
     } catch (error) {
       setErrors([
@@ -204,7 +218,7 @@ export default function VideoLoader({
     } finally {
       setLoadingSamples(false)
     }
-  }, [addFiles])
+  }, [addFiles, videos])
 
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -277,7 +291,7 @@ export default function VideoLoader({
         </button>
       </div>
 
-      <div className="calibration-callout">
+      <div className={`calibration-callout${defaultDiameterCm === null ? ' calibration-callout--unset' : ''}`}>
         <label htmlFor="default-diameter">Platform diameter (cm)</label>
         <input
           id="default-diameter"
