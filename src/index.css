@@ -448,8 +448,16 @@ a {
   padding: 0.25rem 0.5rem;
 }
 
-.selected-row {
-  background: var(--surface);
+/* Previously identical to the table's own background (and to the
+   zebra-striped rows' tint, for an even row), so the "highlight" was
+   invisible in practice. A real accent tint plus a left border -- a shape
+   difference, not colour alone -- so the currently-viewed row is
+   distinguishable at a glance and still reads in greyscale. Scoped under
+   .video-table so its specificity beats the plain :nth-child(even) zebra
+   rule instead of losing to it on even rows. */
+.video-table tbody tr.selected-row {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 /* Overlay marks. Stroke widths and shapes carry the meaning; colour is only a
