@@ -37,6 +37,15 @@ export default function App() {
         trackingRefreshToken={trackingJob.completedCount}
       />
 
+      {/* Nothing past step 1 renders until a video is actually selected --
+          previously Export and Visualizations rendered unconditionally, so
+          a browser with videos tracked in an earlier session showed their
+          combined results immediately on a fresh page load, before the
+          current session had done anything. Confusing even when the data
+          is genuinely accurate: it reads as output appearing from nowhere.
+          Gating everything on `selected` also makes "click Define maze to
+          start" the only way forward, instead of an easy-to-miss first
+          step among several visible sections. */}
       {selected && (
         <>
           <RoiEditor key={`${selected.id}-roi`} video={selected} onRoiChange={setRoi} />
@@ -52,12 +61,10 @@ export default function App() {
             roi={roi}
             trackingJob={trackingJob}
           />
+          <ExportPanel trackingRefreshToken={trackingJob.completedCount} />
+          <VisualizationsPanel trackingRefreshToken={trackingJob.completedCount} />
         </>
       )}
-
-      <ExportPanel trackingRefreshToken={trackingJob.completedCount} />
-
-      <VisualizationsPanel trackingRefreshToken={trackingJob.completedCount} />
     </main>
   )
 }

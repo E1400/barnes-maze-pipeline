@@ -85,6 +85,13 @@ a {
 
 .loader {
   margin-top: 2rem;
+  /* Same breakout as steps 2-6 -- see the .export-panel comment. Step 1's
+     heading bar sat at #root's narrower left edge while every step after
+     it sits at the wider one. */
+  width: min(90rem, calc(100vw - 5rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .dropzone {
