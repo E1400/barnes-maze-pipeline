@@ -23,10 +23,18 @@ export function rgbaToGray(
   return { width, height, data: out }
 }
 
-/** Per-pixel |a - b|. The core of background subtraction. */
-export function absDiff(a: GrayFrame, b: GrayFrame): GrayFrame {
+/**
+ * Per-pixel |a - b|. The core of background subtraction.
+ *
+ * `out` defaults to a fresh frame (existing callers and tests are
+ * unaffected), but the tracking hot path -- one call per video frame,
+ * thousands of times per video -- passes a buffer it reuses across frames
+ * instead of allocating a new ~300KB array every time. Safe to pass `a` or
+ * `b` themselves as `out` too: each index is read then written once, so
+ * there's no aliasing hazard.
+ */
+export function absDiff(a: GrayFrame, b: GrayFrame, out: GrayFrame = createGray(a.width, a.height)): GrayFrame {
   assertSameSize(a, b)
-  const out = createGray(a.width, a.height)
   for (let i = 0; i < a.data.length; i++) {
     const d = a.data[i]! - b.data[i]!
     out.data[i] = d < 0 ? -d : d
@@ -58,12 +66,19 @@ export function circleMask(
   return mask
 }
 
-/** Zeroes every pixel outside the mask. */
-export function applyMask(frame: GrayFrame, mask: BinaryMask): GrayFrame {
+/**
+ * Zeroes every pixel outside the mask. `out` defaults to a fresh frame; the
+ * hot path passes `frame` itself to mask in place (each index only reads
+ * its own prior value before writing it, so this is safe).
+ */
+export function applyMask(
+  frame: GrayFrame,
+  mask: BinaryMask,
+  out: GrayFrame = createGray(frame.width, frame.height),
+): GrayFrame {
   if (mask.length !== frame.data.length) {
     throw new Error(`Mask size ${mask.length} does not match frame ${frame.data.length}`)
   }
-  const out = createGray(frame.width, frame.height)
   for (let i = 0; i < frame.data.length; i++) {
     out.data[i] = mask[i] ? frame.data[i]! : 0
   }

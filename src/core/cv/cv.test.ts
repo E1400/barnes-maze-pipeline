@@ -218,6 +218,55 @@ describe('morphology', () => {
     const mask = new Uint8Array([1, 0, 1, 0])
     expect(Array.from(erode(mask, 2, 2, 0))).toEqual([1, 0, 1, 0])
   })
+
+  it('matches a naive brute-force min/max filter on real-shaped noise, including every edge and corner', () => {
+    // filterSeparable was rewritten to inline its min/max comparison and
+    // short-circuit instead of calling a reducer callback per neighbour
+    // (measured as the majority of a whole frame's detection cost -- see
+    // CLAUDE.md). That's a real behavioural risk disguised as "just faster,"
+    // so cross-check it against an obviously-correct, independently-written
+    // reference on a mask that isn't a clean geometric shape -- a fixed
+    // pseudo-random pattern exercises every edge and corner case at once,
+    // not just the tidy patterns the other tests above use.
+    const w = 23
+    const h = 17
+    const mask = new Uint8Array(w * h)
+    let seed = 12345
+    for (let i = 0; i < mask.length; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      mask[i] = seed % 3 === 0 ? 1 : 0
+    }
+
+    function naiveFilter(reduce: (a: number, b: number) => number): Uint8Array {
+      const horizontal = new Uint8Array(w * h)
+      const radius = 2
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let value = mask[y * w + x]!
+          for (let d = 1; d <= radius; d++) {
+            value = reduce(value, x - d >= 0 ? mask[y * w + (x - d)]! : 0)
+            value = reduce(value, x + d < w ? mask[y * w + (x + d)]! : 0)
+          }
+          horizontal[y * w + x] = value
+        }
+      }
+      const out = new Uint8Array(w * h)
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let value = horizontal[y * w + x]!
+          for (let d = 1; d <= radius; d++) {
+            value = reduce(value, y - d >= 0 ? horizontal[(y - d) * w + x]! : 0)
+            value = reduce(value, y + d < h ? horizontal[(y + d) * w + x]! : 0)
+          }
+          out[y * w + x] = value
+        }
+      }
+      return out
+    }
+
+    expect(Array.from(erode(mask, w, h, 2))).toEqual(Array.from(naiveFilter((a, b) => (a < b ? a : b))))
+    expect(Array.from(dilate(mask, w, h, 2))).toEqual(Array.from(naiveFilter((a, b) => (a > b ? a : b))))
+  })
 })
 
 describe('connectedComponents', () => {
@@ -385,5 +434,32 @@ describe('TypeScriptDetector', () => {
     const [a, b] = detection.axisEnds!
     expect(Math.abs(a.x - b.x)).toBeGreaterThan(10)
     expect(detection.orientation).not.toBeNull()
+  })
+
+  it('reuses its scratch buffers across frames without a stale value leaking through', () => {
+    // TypeScriptDetector holds its intermediate buffers (diff, binary,
+    // morphology, labels) as instance state and reuses them frame to frame
+    // instead of allocating fresh ones -- a real per-frame allocation cost
+    // measured as the majority of a tracking pass's time (see CLAUDE.md).
+    // The adversarial sequence: a masked frame WITH an animal, immediately
+    // followed by an unmasked, fully empty frame. If any reused buffer kept
+    // a stale 1/label from the animal-present, masked call, the empty call
+    // would falsely report something found.
+    const reused = new TypeScriptDetector()
+    const mask = circleMask(width, height, 30, 30, 25)
+    const withAnimal = scene({ x: 25, y: 20, w: 10, h: 6 })
+    const masked = reused.detect(withAnimal, background, mask, { ...DEFAULT_DETECTION_PARAMS, minAreaPx: 20 })
+    expect(masked.found).toBe(true)
+
+    const empty = reused.detect(background, background, undefined, { ...DEFAULT_DETECTION_PARAMS, minAreaPx: 20 })
+    expect(empty.found).toBe(false)
+    expect(empty.area).toBe(0)
+
+    // And the reused instance must still agree with a fresh one on real
+    // content -- reuse must not be observably different from no reuse.
+    const fresh = new TypeScriptDetector()
+    const fromReused = reused.detect(withAnimal, background, mask, { ...DEFAULT_DETECTION_PARAMS, minAreaPx: 20 })
+    const fromFresh = fresh.detect(withAnimal, background, mask, { ...DEFAULT_DETECTION_PARAMS, minAreaPx: 20 })
+    expect(fromReused).toEqual(fromFresh)
   })
 })
