@@ -125,10 +125,27 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
   // Restore any saved layout and pins.
   useEffect(() => {
     let cancelled = false
-    void loadRoi(video.id).then((stored) => {
+    void loadRoi(video.id).then(async (stored) => {
       if (cancelled || !stored) return
       setRoi(stored.roi)
       setPins(stored.pins)
+      // Self-heals a layout saved with no platform diameter -- either from
+      // before a global default existed, or from the auto-detection race
+      // fixed elsewhere in this file (see AI_NOTES): that fix stops a *new*
+      // layout from being created with a null diameter, but doesn't touch
+      // one that was already saved that way, and re-tracking a video never
+      // touches its ROI at all. Without this, "this should never happen"
+      // stayed true forever for any video whose layout predated the fix.
+      if (stored.roi.platformDiameterCm === null) {
+        const defaultDiameterCm = await loadDefaultPlatformDiameterCm()
+        if (!cancelled && defaultDiameterCm !== null) {
+          setRoi((current) =>
+            current && current.platformDiameterCm === null
+              ? setPlatformDiameterCm(current, defaultDiameterCm)
+              : current,
+          )
+        }
+      }
     })
     void loadRoiTemplate().then((template) => {
       if (!cancelled) setTemplateName(template?.sourceVideoName ?? null)
@@ -768,8 +785,10 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                 </label>
               </div>
 
-              <div className="roi-section">
-                <h3>Escape target</h3>
+              <div className={`roi-section roi-section--target ${roi.targetHole === null ? 'roi-section--target-unset' : 'roi-section--target-set'}`}>
+                <h3>
+                  {roi.targetHole === null ? '·' : '✓'} Escape target
+                </h3>
                 <label>
                   Target hole number
                   <input
@@ -792,12 +811,6 @@ export default function RoiEditor({ video, onRoiChange }: Props) {
                     }}
                   />
                 </label>
-                <p className="hint">
-                  What counts as &ldquo;investigating&rdquo; this hole once tracked is a{' '}
-                  <strong>global</strong> setting shared by every video (step 1 shows the current
-                  value) — set once, not re-chosen per clip, and fine-tuned in real units once
-                  this video is tracked (step 4).
-                </p>
               </div>
 
               <div className="roi-section">

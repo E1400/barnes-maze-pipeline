@@ -119,6 +119,29 @@ test('a global default platform diameter seeds a newly detected layout automatic
   await expect(page.getByLabel('Platform diameter (cm) for this video')).toHaveValue('92')
 })
 
+test('a layout already saved with no diameter self-heals from the global default on reopen', async ({ page }) => {
+  // Covers the other half of the same bug: the seeding fix only stops a
+  // *new* layout from being created with a null diameter. A layout that was
+  // already saved that way (from before a default existed, or from the race
+  // itself before it was fixed) is never touched by re-tracking -- so
+  // without this, "this should never happen" stayed true forever for any
+  // video whose layout predated the fix. Simulate that saved state directly
+  // through the UI (clear the field, let it autosave) rather than assuming
+  // -- then reload and confirm the default fills it back in.
+  await page.goto('./')
+  await page.getByLabel('Platform diameter (cm)').fill('92')
+  await openEditor(page)
+  await expect(page.getByLabel('Platform diameter (cm) for this video')).toHaveValue('92')
+
+  await page.getByLabel('Platform diameter (cm) for this video').fill('')
+  await page.waitForTimeout(1000) // past MAX_SAVE_DELAY_MS, so the null value is actually persisted
+
+  await page.reload()
+  await page.getByRole('button', { name: /Define maze|Review maze/ }).click()
+  await page.locator('circle.roi-hole').first().waitFor({ timeout: 30_000 })
+  await expect(page.getByLabel('Platform diameter (cm) for this video')).toHaveValue('92')
+})
+
 test('the layout, target and pins survive a reload', async ({ page }) => {
   const svg = await openEditor(page)
   const hole = page.locator('circle.roi-hole').first()
