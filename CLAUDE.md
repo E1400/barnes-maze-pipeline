@@ -129,8 +129,8 @@ just change code silently, when a decision changes.
 - **The Worker is owned by `App`, via `useTrackingJob`** (`src/ui/useTrackingJob.ts`),
   not by `TrackingPanel`. It was owned by `TrackingPanel` originally, which
   meant switching to a different video — remounting `TrackingPanel` under a
-  new `key` — terminated an in-progress run. A real, reported bug (AI_NOTES
-  mistake 11), not a hypothetical: fixed by moving the Worker's lifetime to a
+  new `key` — terminated an in-progress run. A real, reported bug, not a
+  hypothetical: fixed by moving the Worker's lifetime to a
   hook that lives as long as the app does. **Only one job runs at a time by
   design** — the user does not need concurrent tracking, and running several
   CV pipelines at once is a real memory concern for long clips —
@@ -149,7 +149,7 @@ just change code silently, when a decision changes.
   own 0–100%, so the status label names the phase explicitly ("Background
   92%" then "Tracking 15%") rather than a bare percentage that would
   otherwise look like it went backwards when the second pass starts over
-  from zero (caught in verification, AI_NOTES mistake 11). The row action
+  from zero (caught in verification). The row action
   button reads "Define maze" or "Review maze" depending on that same status,
   replacing a button that used to say "Define maze" even after a maze had
   already been defined.
@@ -201,7 +201,7 @@ just change code silently, when a decision changes.
   `fill: none` rule once silently made the target hole undraggable: SVG only
   hit-tests a shape's *painted* area, so with no fill, only its ~2px stroke
   edge registered pointer events, and a drag starting at the shape's centre
-  (where every other hole works) missed it entirely (AI_NOTES mistake 14).
+  (where every other hole works) missed it entirely.
   That was originally fixed with a *solid* distinct fill, on the theory that
   solid also served visibility. It didn't, for the one moment visibility
   matters most: reviewing tracked footage, a solid target hole hides the
@@ -225,7 +225,7 @@ just change code silently, when a decision changes.
   switching videos, before `RoiEditor`'s own reset propagates back up. A
   pins-save that also wrote `roi` from that prop was a real, demonstrated
   bug: switching videos could silently overwrite a video's correct, already-
-  detected ROI with a *different* video's coordinates (AI_NOTES mistake 13).
+  detected ROI with a *different* video's coordinates.
   `updatePins()` does a read-modify-write inside one IndexedDB transaction
   that only ever touches `pins`, using whatever ROI is actually persisted —
   structurally impossible for a stale prop to reach storage through it,
@@ -334,7 +334,7 @@ just change code silently, when a decision changes.
   ambiguous disappearances are `LOST`. Both parameters are named fields on
   `TrackerParams`, not buried constants. The classification is decided once
   per *vanish streak* and held for every subsequent frame in that streak —
-  see AI_NOTES mistake entry 9 for why re-deciding it every frame was wrong.
+  re-deciding it every frame instead produced flicker between states.
 - **Per-frame state machine:** `TRACKED` / `LOST` / `OCCLUDED_IN_HOLE` (blob
   vanished near a hole ROI — a real event, never interpolated) /
   `IN_ESCAPE_BOX`. `IN_ESCAPE_BOX` has no separate escape-box ROI: it's a
@@ -584,8 +584,8 @@ just change code silently, when a decision changes.
   completes -- this exact scenario had no test coverage before, which is
   how the race went unnoticed.
 - **`.roi-hole--target`'s fill is fully transparent, not solid or translucent
-  (revised twice now, 2026-09-03).** A solid fill (the original fix for
-  mistake 14, see below) hid the mouse at the exact moment it entered the
+  (revised twice now, 2026-09-03).** A solid fill (the original fix, see
+  below) hid the mouse at the exact moment it entered the
   target hole. A translucent fill was the first correction, but still dimmed
   it. The actual answer: `fill: transparent` — a real value, distinct from
   `fill: none` — so the centre is completely see-through while the shape
@@ -593,7 +593,7 @@ just change code silently, when a decision changes.
   shape *has* a fill (transparent counts, none doesn't), not its opacity;
   confirmed directly with a Playwright centre-click test before shipping
   this specific change, given how expensive it's already been to get this
-  one property wrong once (mistake 14). All hole circles got thinner
+  one property wrong once. All hole circles got thinner
   strokes at the same time, same reasoning: legible at a glance, never
   thick enough to cover the animal underneath.
 - **Escape/deep-hole-visit detection refined to catch a residual-blob case
@@ -1104,8 +1104,8 @@ just change code silently, when a decision changes.
   unrelated gotcha caught the same day (`erasableSyntaxOnly` rejecting a
   constructor parameter property).
 - **Platform-diameter self-heal centralized into `loadRoi()` itself
-  (2026-09-07), `state/roiStore.ts`.** The original self-heal (2026-09-05,
-  AI_NOTES mistake 18) lived only inside `RoiEditor`'s mount effect, so it
+  (2026-09-07), `state/roiStore.ts`.** The original self-heal (2026-09-05)
+  lived only inside `RoiEditor`'s mount effect, so it
   only ever reached whichever video's editor a human happened to reopen --
   a cohort-wide reader (`useCohortData`, behind Export/Visualizations/
   cohort statistics) calls `loadRoi()` directly and never went through
@@ -1185,8 +1185,8 @@ just change code silently, when a decision changes.
   specificity beats the existing `:nth-child(even)` zebra rule.
 - **Sample-video loading is now idempotent by name, not by relying on a
   fetched File's derived id (2026-09-07), `VideoLoader.tsx`.** The
-  previous fix (`lastModified: 0` on the constructed `File`, AI_NOTES
-  mistake 19) was reported as still duplicating on a second click.
+  previous fix (`lastModified: 0` on the constructed `File`) was reported
+  as still duplicating on a second click.
   Rather than chase why the id might occasionally differ, made the button
   itself skip fetching any sample name already present in the table --
   guarantees no duplicate regardless of id computation, and only fetches
