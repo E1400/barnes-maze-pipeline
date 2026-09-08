@@ -144,7 +144,7 @@ src/ui/         React components (VideoLoader, RoiEditor, TrackingPanel,
 src/io/         CSV/XLSX export, chart SVG/PNG download
 tests/e2e/      Playwright end-to-end tests
 demo-outputs/   committed real outputs for test50 / test51 / test53
-docs/           build plan and an archived copy of the take-home brief
+docs/           timebase ground truth and an archived copy of the take-home brief
 ```
 
 ## License

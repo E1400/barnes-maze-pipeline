@@ -1,6 +1,5 @@
 /**
- * Application shell. Steps 1-6 are real -- see docs/plan.md for the
- * remaining, non-UI compliance/ship work (accessibility pass, docs, README).
+ * Application shell. Steps 1-6 are real.
  */
 
 import { useState } from 'react'

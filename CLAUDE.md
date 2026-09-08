@@ -18,7 +18,10 @@ neuroscientist can use in a paper, without a terminal.
 
 - Full original brief, verbatim: [`docs/brief-archive.md`](docs/brief-archive.md)
   (do not edit — it's a snapshot of the take-home repo for offline reference)
-- Build plan / milestones: [`docs/plan.md`](docs/plan.md)
+- Build plan / milestones: `claude/task1-plan.md` in the "Salk Projects"
+  claude.ai Project (removed from this repo, 2026-09-07 — internal planning
+  scaffolding, not something a submission reviewer needs; not a deferred
+  deliverable, a deliberate cut)
 - Live take-home repo: https://github.com/salk-airc/rse-takehome-2026
 - Sample data (not committed here — link to it, per the brief's instructions):
   https://github.com/salk-airc/rse-takehome-2026/tree/main/data/barnes-maze
@@ -1270,9 +1273,8 @@ src/ui/         React components: VideoLoader, ROIEditor, Scrubber /
                 Visualizations, ExportPanel
 src/io/         CSV/XLSX export, versioned project-file JSON schema
 demo-outputs/   committed real outputs for test50/test51/test53
-docs/plan.md            phased build plan (mirrors the Salk Projects
-                        claude.ai Project)
 docs/brief-archive.md   verbatim copy of the take-home brief
+docs/timebase-findings.md   measured ground truth for the container timebase
 ```
 
 ## Commands
@@ -1333,5 +1335,4 @@ reported clean moments earlier. Always verify with `npm run typecheck` or
   and don't present a framework/template default as a bespoke decision.
 - Milestone order (cut from the bottom if time runs short): scaffold → ROI
   editor → CV tracking core → cleanup/correction UI → event detection &
-  measures → visualization & export → compliance & ship. Full detail in
-  `docs/plan.md`.
+  measures → visualization & export → compliance & ship.
