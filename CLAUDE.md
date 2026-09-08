@@ -138,7 +138,7 @@ just change code silently, when a decision changes.
   clear "another video is tracking" message with its own button disabled
   rather than queueing or silently no-op'ing.
 - **The video table (`src/ui/VideoLoader.tsx`) is the multi-video status
-  dashboard.** Elvis asked for a way to navigate/track status across videos
+  dashboard.** Wanted a way to navigate/track status across videos
   without a full per-video workspace redesign; the table already listing
   every loaded video was the natural fit — extended with Maze
   (Not defined / Defined) and Tracking (Not tracked / Background N% /
@@ -164,7 +164,7 @@ just change code silently, when a decision changes.
   signal (nose-to-hole proximity over time, independent of vanish/reappear)
   and, per the brief's own framing ("what counts as investigating a hole has
   no single right answer... the threshold must be visible and adjustable"),
-  its own tunable threshold UI — Elvis chose to keep it as its own future
+  its own tunable threshold UI — kept as its own future
   milestone (event detection) rather than a quick addition here.
 - **Manual correction (implemented 2026-09-03, `src/ui/CorrectionViewer.tsx`,
   step 4) is an overlay, not a mutation.** `src/core/corrections.ts` keeps a
@@ -176,7 +176,7 @@ just change code silently, when a decision changes.
   This is what satisfies both non-negotiables — "corrections survive a
   reload" and "visually obvious which values are automatic vs.
   human-touched" — without needing to touch the tracking pipeline itself.
-  **Scope, deliberately narrow (Elvis's choice):** a correction repositions a
+  **Scope, deliberately narrow:** a correction repositions a
   point on a frame already `TRACKED` by the algorithm. It does not relabel a
   frame's *state* — a `LOST`/`OCCLUDED_IN_HOLE` frame shows its state but has
   no draggable point and says so plainly, rather than silently doing
@@ -194,28 +194,24 @@ just change code silently, when a decision changes.
   adds real complexity (portals, escape-key handling, focus trapping) this
   pass didn't need. The ROI editor (step 2) got the same toggle, also
   defaulted to expanded, for consistency.
-- **`.roi-hole--target`'s fill must never be `none`, but it can be (and now
-  is) translucent.** It shares a look with `.roi-hole--target-ring` (the
-  hollow outline drawn *around* the target hole) but is a structurally
-  different element — the main hole circle — and grouping them under one
-  `fill: none` rule once silently made the target hole undraggable: SVG only
-  hit-tests a shape's *painted* area, so with no fill, only its ~2px stroke
-  edge registered pointer events, and a drag starting at the shape's centre
-  (where every other hole works) missed it entirely.
-  That was originally fixed with a *solid* distinct fill, on the theory that
-  solid also served visibility. It didn't, for the one moment visibility
-  matters most: reviewing tracked footage, a solid target hole hides the
-  mouse at the exact instant it enters the hole — the thing a reviewer is
-  there to watch (Elvis's feedback, 2026-09-03). Fixed properly now: a
-  translucent fill (`rgba(226, 69, 60, 0.35)`) plus a coloured stroke. Still
-  a real, non-`none` fill — SVG hit-testing cares whether a shape *has* a
-  fill, not its opacity — so it stays exactly as draggable as before; opacity
-  was the missing degree of freedom the first fix didn't reach for. All hole
-  circles (target and regular) also got thinner strokes generally, same
-  reasoning: obvious enough to read at a glance, never thick enough to
-  obscure the animal underneath. The correction viewer's trajectory plot
-  keeps the same outer ring the ROI editor has, so the target reads clearly
-  there too, not just during layout.
+- **`.roi-hole--target`'s fill is fully transparent, not `none`.** It shares
+  a look with `.roi-hole--target-ring` (the hollow outline drawn *around*
+  the target hole) but is a structurally different element — the main hole
+  circle — and an original rule grouping them under one `fill: none` once
+  silently made the target hole undraggable: SVG only hit-tests a shape's
+  *painted* area, so with no fill only its ~2px stroke edge registered
+  pointer events. Got this property wrong twice before landing right: a
+  solid fill restored draggability but hid the mouse at the exact instant
+  it entered the hole — the thing a reviewer is there to watch — and a
+  translucent fill after that still dimmed it. The actual answer is
+  `fill: transparent`, a real value distinct from `none`: SVG hit-testing
+  only cares whether a shape *has* a fill, not its opacity, so the centre
+  is completely see-through while staying exactly as draggable as solid
+  was — confirmed directly with a Playwright centre-click test. All hole
+  circles also got thinner strokes generally, same reasoning: legible at a
+  glance, never thick enough to obscure the animal underneath. The
+  correction viewer's trajectory plot keeps the same outer ring the ROI
+  editor has, so the target reads clearly there too.
 - **Pins are updated separately from ROI (`updatePins()` in
   `src/state/roiStore.ts`), never as a side effect of saving ROI geometry.**
   `CorrectionViewer` and `RoiEditor` both have their own pin toggle on the
@@ -230,25 +226,30 @@ just change code silently, when a decision changes.
   that only ever touches `pins`, using whatever ROI is actually persisted —
   structurally impossible for a stale prop to reach storage through it,
   rather than a guard that has to be remembered to keep working.
-- **Nose direction is smoothed over `Tracker.NOSE_DIRECTION_WINDOW` (10,
-  widened from 5) frames, not the single previous frame**
-  (`src/core/tracking.ts`). A one-frame centroid delta is dominated by
+- **Nose direction is smoothed over `Tracker.NOSE_DIRECTION_WINDOW` (10
+  frames, widened twice from an original 5) and `MIN_INFORMATIVE_SPEED`
+  (1.5 px/frame, widened from 0.5)** (`src/core/tracking.ts`), not the
+  single previous frame. A one-frame centroid delta is dominated by
   per-frame position noise and can flip sign even when the animal's real
-  motion hasn't changed, which used to flip the nose to the tail for a frame
-  and back — reported by Elvis while reviewing tracked footage. Comparing
-  against a point several frames back averages that out while still
-  responding to a genuine direction reversal within a few frames. Widened
-  again, and `MIN_INFORMATIVE_SPEED` raised 0.5 → 1.5px/frame, on
-  2026-09-04: **this stopped being cosmetic once hole-investigation
-  detection shipped** — `events.ts` reads `frame.nose` directly for
-  proximity detection, so nose jitter doesn't just look bad on the
-  trajectory plot, it fabricates short-lived spurious investigation rows
-  wherever the tail end swings toward. Reported again on `test50`
-  specifically (the longest clip, most opportunity for jitter to
-  accumulate); the note above claiming this was "not yet consequential" is
-  the kind of thing that goes stale the moment a new feature starts reading
-  a field that used to be display-only — worth a reminder to re-check
-  claims like that when they get cited again, not just trust them.
+  motion hasn't changed, which used to flip the nose to the tail for a
+  frame and back while reviewing tracked footage. This stopped being purely
+  cosmetic once hole-investigation detection shipped: `events.ts` reads
+  `frame.nose` directly for proximity detection, so jitter fabricated
+  short-lived spurious investigation rows wherever the tail end swung
+  toward, most visibly on `test50` (the longest clip, most opportunity for
+  jitter to accumulate). Verified two ways after the second widening: unit
+  tests (a widened reversal-sequence test, plus a new adversarial jitter
+  test that would have crossed the old threshold), and a real re-track of
+  `test50` (investigation count 119 → 105, search-strategy
+  order-consistency 92% → 95%, label unchanged: Serial). A real debugging
+  episode worth remembering: a report that the fix "didn't work" (`test50`
+  still classifying Random) traced not to the algorithm but to caching —
+  investigations and search strategy recompute live from whatever track is
+  already *stored* in IndexedDB, so a video tracked before the fix keeps
+  showing pre-fix numbers until it's explicitly re-tracked, and reloading
+  the page is not the same as re-tracking. A "not yet consequential" claim
+  about a field is only true until a new feature starts reading that
+  field — worth re-checking, not just trusting, once cited again.
 - **Two full decode passes per video** (`src/core/cv/pipeline.ts`): one to
   build the background model from ~30 frames spread across the whole clip,
   one to run detection/tracking on every frame. The background model needs
@@ -258,8 +259,8 @@ just change code silently, when a decision changes.
   Decoding twice keeps memory bounded to a couple of frames at a time, at a
   real but accepted time cost (roughly 2x a single decode pass).
 - **Tracking speed: ~2.7x real end-to-end improvement (2026-09-04),
-  `src/core/cv/detector.ts` + `morphology.ts`.** Elvis reported real
-  tracking runs feeling close to 10 minutes for `test50`, too slow for a
+  `src/core/cv/detector.ts` + `morphology.ts`.** Real
+  tracking runs were feeling close to 10 minutes for `test50`, too slow for a
   2-3 minute demo video that has to include loading and tracking on camera.
   Investigated with a real per-frame benchmark before guessing at a fix
   (a throwaway Vitest file, not committed): a **first hypothesis --
@@ -285,7 +286,7 @@ just change code silently, when a decision changes.
   on the same benchmark -- **4.2x on the CV computation itself**, and a
   measured **120.1s** real end-to-end re-track of `test50` in a real
   browser (down from this session's own measured 328s baseline, and from
-  Elvis's reported ~10 minutes) -- **~2.7x real-world**, the CV-only ratio
+  the originally reported ~10 minutes) -- **~2.7x real-world**, the CV-only ratio
   diluted somewhat by decode/Worker overhead that this change doesn't
   touch. Verified as behaviour-preserving, not just faster: the full
   existing test suite (which already exercises masked/unmasked, varied
@@ -323,8 +324,8 @@ just change code silently, when a decision changes.
   first:** "the second video is faster to process than the first, because
   the tool learned something from the first" (the brief's own "what good
   looks like" framing) is a different, bigger kind of speedup -- cross-video
-  reuse of e.g. the background model or detection parameters -- and Elvis
-  agreed it reads as more machine-learning-flavoured than this classical
+  reuse of e.g. the background model or detection parameters -- it reads
+  as more machine-learning-flavoured than this classical
   pipeline calls for; out of scope, not just deferred.
 - **Lost vs in-hole policy:** conservative, implemented in
   `src/core/tracking.ts`'s `Tracker`. A vanished blob is only called
@@ -424,7 +425,7 @@ just change code silently, when a decision changes.
   calling this done — see AI_NOTES.md.
 - **Review workspace (2026-09-03): steps 4 and 5 merged into one screen,**
   the video viewer and the investigation list side by side rather than
-  stacked sections a reviewer scrolled between (Elvis's feedback). Data
+  stacked sections a reviewer scrolled between. Data
   (tracks, corrections, frame index, the decoded frame) moved into a shared
   hook, `useTrackReview` (`src/ui/useTrackReview.ts`), called once by
   `ReviewWorkspace` and passed to `TrackViewer` (the rendering half of the
@@ -452,7 +453,7 @@ just change code silently, when a decision changes.
   built with no cap at all (the table just ran on as long as it needed,
   page scrolling past it). On `test50` (5539 frames, 119 investigations)
   that meant scrolling well past the video to see the rest of the rows, so
-  Elvis asked for a capped, internally-scrolling box again — with the
+  a capped, internally-scrolling box was wanted again — with the
   caveat that the earlier version of that same idea (mistake-adjacent, not
   numbered since it never shipped to `main`) had been removed for being too
   restrictive, so this one needed to actually work. First attempt used
@@ -480,7 +481,7 @@ just change code silently, when a decision changes.
   sentence ("Time from the start of the trial") and the two cards under it
   just say "To target" / "To escape" — short because the group already gave
   the context. Same pattern for Errors, Path, and Quadrant time. Quadrant
-  time specifically kept (not dropped, despite Elvis's uncertainty about its
+  time specifically kept (not dropped, despite some uncertainty about its
   value) because a target-quadrant search bias is a standard spatial-memory
   readout in this literature, same family as the Morris water-maze probe
   trial — now labelled and described as such rather than left as four
@@ -489,8 +490,8 @@ just change code silently, when a decision changes.
   to show a 4-line checklist (Tracked/Lost/In a hole/Escaped frame counts) —
   the last two are exactly what step 4's investigation table and latency
   cards already cover, with real context (which hole, when), so showing bare
-  frame counts here again read as redundant, unexplained clutter (Elvis's
-  feedback). Now a single status line, phrased `"{total} frames processed:
+  frame counts here again read as redundant, unexplained clutter.
+  Now a single status line, phrased `"{total} frames processed:
   {tracked} tracked{, N with the mouse not in view (%)}"` — leads with the
   total so a completed run never reads as partial. That phrasing was chosen
   deliberately, not the obvious `"{tracked} of {total} frames tracked"`:
@@ -561,41 +562,30 @@ just change code silently, when a decision changes.
   it's set — a shape difference, not just a colour one) rather than being
   the third subsection down, since real-world units are load-bearing for
   every measure downstream, not a footnote.
-- **Fixed a real race that silently left path length/speed blank on some
-  videos (2026-09-04), `RoiEditor.tsx`.** Elvis reported the length/speed
-  stat cards were blank on some videos with no explanation -- "this should
-  never happen." Root cause: the default diameter used to be read once into
-  a ref by its own mount-time effect, and auto-detection (a separate
-  mount-time effect) read that ref when building the new ROI. Nothing
-  guaranteed which of the two IndexedDB reads resolved first, so on
-  whichever videos the detection effect happened to win the race, it built
-  the new ROI with the ref still `null` -- silently seeding no platform
-  diameter, and therefore no path length or speed, with no visible error.
-  "Some videos, not all" is exactly the signature of a race, not a
-  deterministic bug, which is why it took a direct report to surface: a
-  video's own open-and-decode time varies with file size, changing which
-  read wins on a given machine on a given run. Fixed by reading the default
-  fresh via `await loadDefaultPlatformDiameterCm()` at the point of use in
-  both the auto-detection path and the manual 3-click path, instead of a
-  pre-loaded ref with no ordering guarantee against the effect that
-  populates it. Added an e2e test setting the default before a video is
-  even loaded (the least favourable ordering for the race to lose) and
-  asserting the per-video field is seeded immediately once detection
-  completes -- this exact scenario had no test coverage before, which is
-  how the race went unnoticed.
-- **`.roi-hole--target`'s fill is fully transparent, not solid or translucent
-  (revised twice now, 2026-09-03).** A solid fill (the original fix, see
-  below) hid the mouse at the exact moment it entered the
-  target hole. A translucent fill was the first correction, but still dimmed
-  it. The actual answer: `fill: transparent` — a real value, distinct from
-  `fill: none` — so the centre is completely see-through while the shape
-  stays exactly as draggable as before. SVG hit-testing cares whether a
-  shape *has* a fill (transparent counts, none doesn't), not its opacity;
-  confirmed directly with a Playwright centre-click test before shipping
-  this specific change, given how expensive it's already been to get this
-  one property wrong once. All hole circles got thinner
-  strokes at the same time, same reasoning: legible at a glance, never
-  thick enough to cover the animal underneath.
+- **Platform-diameter self-heal: a three-layer bug chain, now centralized
+  in `loadRoi()` (`state/roiStore.ts`).** Layer one: the length/speed stat
+  cards were blank on some videos with no explanation. Root cause was a
+  race in `RoiEditor.tsx` — the default diameter was read once into a ref
+  by its own mount-time effect, and a separate auto-detection effect read
+  that ref when building a new ROI, with no guarantee which of the two
+  IndexedDB reads resolved first; whichever videos' detection effect won
+  the race got a new ROI seeded with `platformDiameterCm: null`. Fixed by
+  reading the default fresh at the point of use instead of a pre-loaded
+  ref. Layer two: that only stopped *new* ROIs from being created null —
+  re-tracking a video never touches its ROI, so a layout already saved
+  without a diameter stayed broken regardless. Fixed with a self-heal that
+  applies and persists the current default whenever a saved layout loads
+  with a null diameter. Layer three: that self-heal still lived only in
+  `RoiEditor`'s own mount effect, so a cohort-wide reader (`useCohortData`,
+  behind Export/Visualizations/cohort statistics) kept seeing a stale null
+  diameter for any video nobody had reopened — surfaced as cohort
+  statistics reporting a video as "skipped" even though it showed a real
+  path length elsewhere. Fixed by moving the heal into `loadRoi()` itself,
+  so every caller gets it uniformly. Each layer was verified with a real
+  e2e/browser test targeting that exact scenario (the least favourable
+  race ordering, a legacy null-diameter layout simulated through the UI, a
+  real seeded cohort comparison) rather than assumed fixed by the previous
+  layer's fix.
 - **Escape/deep-hole-visit detection refined to catch a residual-blob case
   the state machine structurally could not (2026-09-03),
   `Tracker.finalize()`.** Measured directly on `test51` and `test53`'s own
@@ -628,7 +618,7 @@ just change code silently, when a decision changes.
   up to a *cutoff frame*: the moment the target was first reached, or —
   when it never was — the last tracked frame of the clip, so a trial that
   never finds the target still gets scored on the search it actually
-  performed (Elvis's explicit call) rather than being left unclassified.
+  performed (a deliberate call) rather than being left unclassified.
   Three signals feed the decision, all derived from data already computed
   elsewhere (no new tracking needed): path directness (straight-line
   distance from the start position to the target/endpoint, over actual path
@@ -644,7 +634,7 @@ just change code silently, when a decision changes.
   actual numbers behind it (e.g. "Investigated 5 holes in ring order (86% of
   transitions continuing one direction) before the target"), and lives as
   its own `stat-group` alongside the other trial measures rather than a
-  separate panel with its own jump/scroll machinery — Elvis's call: its
+  separate panel with its own jump/scroll machinery — its
   classification already considers the whole movement path, so unlike a
   hole-investigation row it has no one frame to jump to.
 - **Every trial-stat card is manually overridable through one shared "Edit"
@@ -658,13 +648,13 @@ just change code silently, when a decision changes.
   there. One "Edit" button switches every card in `TrialStats` into an
   editable input at once (a `<select>` for the search-strategy label,
   numeric inputs for everything else) rather than each card carrying its
-  own edit affordance — Elvis's explicit call, and it also keeps the stat
+  own edit affordance — a deliberate call, and it also keeps the stat
   grid visually calm outside of edit mode. An overridden card gets the same
   dashed-border treatment as a manually corrected track point, plus a
   "(manual)" tag, so auto-vs-human-touched stays visually obvious here too.
 - **Undo and a full reset for investigation edits (2026-09-03),
-  `useInvestigations.ts`.** A deleted row used to be gone for good — Elvis's
-  feedback. `applyEdit` now pushes the pre-edit state onto an in-memory
+  `useInvestigations.ts`.** A deleted row used to be gone for good.
+  `applyEdit` now pushes the pre-edit state onto an in-memory
   history (capped at 20) before every add/update/delete, so "Undo" always
   has something to step back to regardless of which kind of edit it was;
   history is session-scoped, not persisted, matching ordinary undo
@@ -677,7 +667,7 @@ just change code silently, when a decision changes.
 - **"LOST" renamed to "Mouse not in view" everywhere in the UI, not in the
   code (2026-09-03).** "Tracking lost" reads as a tool failure; on real
   footage most of it is simply the animal not yet placed on the platform at
-  the start of a clip, which is normal, not an error (Elvis's feedback). The
+  the start of a clip, which is normal, not an error. The
   `TrackState` value itself is still `'LOST'` throughout `core/` — renaming
   a type used across the tracker, measures, and event detection for a
   display-string complaint would be real, unjustified churn — only
@@ -755,43 +745,17 @@ just change code silently, when a decision changes.
   edited, id/source-tagged list must get it back unnarrowed, and
   `EffectiveInvestigation.kind` includes `'manual'`, which the concrete
   `HoleInvestigation`-typed `TrialMeasures.investigations` can't hold.
-- **Export restructured into two visibly separate sections (2026-09-04,
-  Elvis's feedback): "All videos combined" and "Per video."** A facility
+- **Export restructured into two visibly separate sections (2026-09-04):
+  "All videos combined" and "Per video."** A facility
   either wants one cohort file or wants to hand a single collaborator just
   their own video's numbers, and the original single set of buttons made it
   unclear which a download actually contained. Per-video rows get their own
   "Trial (CSV)" / "Investigations (CSV)" / "XLSX" buttons.
 - **The investigation/export table header is sticky within its own scroll
-  container (2026-09-04, Elvis's feedback: "make the column names hover as
+  container (2026-09-04: "make the column names hover as
   you scroll").** Plain `position: sticky; top: 0` on `<th>`, verified in a
   real browser that the header's screen position doesn't move as the table
   scrolls beneath it.
-- **Nose-direction smoothing widened again (2026-09-04): `NOSE_DIRECTION_WINDOW`
-  5 → 10 frames, `MIN_INFORMATIVE_SPEED` 0.5 → 1.5 px/frame** (`src/core/tracking.ts`).
-  Elvis reported test50 still visibly jittery — rapid nose-end flips that,
-  since hole-investigation detection reads `frame.nose` (see the
-  2026-09-02 bullet above), were generating spurious proximity events and
-  noisy extra rows. The "not yet consequential for classification" claim in
-  the original version of this bullet was already stale by the time it was
-  written — it's worth a reminder to re-check claims like that when they get
-  cited again, not just trust them. Verified both ways: unit tests (widened
-  one existing reversal-sequence test so it's still long enough to flush the
-  wider window, added a new test asserting small back-and-forth jitter that
-  would have crossed the old 0.5px/frame threshold no longer flips the
-  nose), and a real re-track of test50 (investigation count 119 → 105,
-  search-strategy order-consistency 92% → 95%, label unchanged: Serial).
-  **Unresolved:** Elvis separately reported still seeing test50 classified
-  Random after this fix. Re-tracking test50 fresh, both before and after the
-  window change, consistently produced Serial in this session's own
-  testing — never Random. `holeOrderScore` and `directness` don't depend on
-  which hole is the target when the target is never reached (test50's case),
-  so a different target-hole choice doesn't obviously explain it either.
-  Leading hypothesis: **stale cached track data** — tracking results are
-  cached in IndexedDB, and investigations/strategy are recomputed live from
-  those *cached* tracks on every load, so this fix only changes what gets
-  written to a *fresh* re-track, not what a previously-tracked video already
-  has stored. Reported to Elvis directly rather than guessing further; not
-  confirmed fixed on his end as of this commit.
 - **"Richer visualizations" (2026-09-04), `src/ui/VisualizationsPanel.tsx`,
   step 6.** Four views, all pure SVG/CSS (no charting library, matching
   `TrackViewer`'s shared-viewBox overlay pattern): an occupancy heatmap
@@ -817,8 +781,8 @@ just change code silently, when a decision changes.
   confirmed correct investigation counts, correct CSV row counts, the
   never-reached marker firing exactly where expected, and the per-video
   selector actually re-rendering the heatmap/raster on switch.
-- **Every visualization is downloadable as SVG and PNG (2026-09-04,
-  Elvis's feedback), `src/io/chartExport.ts`.** Each chart is a real,
+- **Every visualization is downloadable as SVG and PNG (2026-09-04),
+  `src/io/chartExport.ts`.** Each chart is a real,
   standalone `<svg>` (the cohort-comparison chart was rebuilt from CSS bars
   into SVG specifically so it has one too, for consistency with the other
   three), so `downloadSvgFile` just serializes and downloads it, and
@@ -832,7 +796,7 @@ just change code silently, when a decision changes.
   declares its namespace, and the PNG file's first two bytes are the real
   PNG signature (`\x89PNG`), for both an SVG-only chart (occupancy heatmap)
   and the newly-SVG cohort comparison.
-- **Learning curve got a real y-axis (2026-09-04, Elvis's feedback: "add a
+- **Learning curve got a real y-axis (2026-09-04: "add a
   y axis... at the bottom").** It had axis *lines* before but no scale —
   a viewer could see one trial took longer than another but not by how
   much. `niceTickStep` (`VisualizationsPanel.tsx`) picks a round
@@ -841,8 +805,8 @@ just change code silently, when a decision changes.
   4.6s...". Dashed gridlines at each tick, plus a rotated "Latency (s)"
   axis title, so the axis is legible on its own without cross-referencing
   the legend paragraph below it.
-- **Step 3's heading bar was misaligned against steps 2 and 4 (2026-09-04,
-  Elvis's feedback: "slide over the step 3 title bar so its in line").**
+- **Step 3's heading bar was misaligned against steps 2 and 4 (2026-09-04:
+  "slide over the step 3 title bar so its in line").**
   Root cause: `.roi` (step 2) and `.review-workspace` (step 4) both break
   out of `#root`'s narrower 60rem reading width to a wider, independently
   centred `min(90rem, 100vw - 5rem)` (documented above, 2026-09-03) because
@@ -857,7 +821,7 @@ just change code silently, when a decision changes.
   headings' `getBoundingClientRect().left` in a real browser: identical
   (40px) after the fix, previously different.
 - **"Copy layout from X" (2026-09-04), `RoiEditor.tsx`, answers a real
-  question Elvis raised: if every video's platform is physically the same
+  question: if every video's platform is physically the same
   92cm, shouldn't the hole-investigation criteria already be identical
   across videos?** They already are, in the sense that matters most: the
   investigation threshold (`proximityRadiusFactor`, `minFrames`) is a
@@ -871,13 +835,13 @@ just change code silently, when a decision changes.
   So the criterion is one number everywhere; the cm figure it works out to
   for a given video can still differ slightly, correctly, because it's a
   derived quantity. "Reuse this layout on other videos" already let a
-  saved layout seed a video that had *no* ROI yet, but Elvis's actual
-  videos are already all defined, so that path never applied to them. Added
+  saved layout seed a video that had *no* ROI yet, but the actual
+  videos in this project are already all defined, so that path never applied to them. Added
   a second, explicit "Copy layout from {name}" action, available whenever
   a template exists and the current video already has its own layout,
   confirmed via `window.confirm` since it discards this video's own
   centre/ring/holes/target/nudges — for the case where the rig genuinely
-  didn't move between recordings and Elvis wants every video scored
+  didn't move between recordings and the goal is every video scored
   against literally identical pixel geometry, not just an identical
   factor. Verified in a real browser: seeded two videos with deliberately
   different hole radii (14px, 22px), saved the first as the template,
@@ -885,23 +849,6 @@ just change code silently, when a decision changes.
   layout and a differently-named template exists, and confirmed clicking
   it actually changed the second video's hole radius to match the first's
   exactly (22 → 14).
-- **Investigated Elvis's report that all three sample videos still
-  classify Random, again.** The investigation-grouping fix (2026-09-03)
-  and the nose-smoothing fix (2026-09-04, this branch) were both verified
-  against real re-tracked data in this session and both produced the
-  expected result (`test50` → Serial). The one variable this session
-  cannot control or observe: **this branch is deliberately unmerged**
-  (Elvis's own instruction, "dont merge new branch yet"), so if Elvis is
-  testing the deployed GitHub Pages site or a `main` checkout rather than
-  `feat/tracker-smoothing-viz` directly, none of this branch's tracking
-  changes are live there yet — that alone would fully explain seeing the
-  pre-fix behavior. Separately, even on this branch, IndexedDB caches a
-  video's track from whenever it was last tracked; investigations and
-  search strategy recompute live from that *stored* track on every load,
-  so loading or reloading the page is not the same as re-tracking, and a
-  video tracked before either fix will keep showing pre-fix numbers until
-  it is explicitly re-tracked. Reported both conditions back to Elvis
-  directly rather than guessing at a third explanation.
 - **Persistence:** IndexedDB (video blobs, ROIs, tracking data, corrections,
   the global investigation threshold, manual investigation edits, manual
   measure overrides, the global default platform diameter) — a refresh must
@@ -926,41 +873,30 @@ just change code silently, when a decision changes.
 - **Testing:** Vitest for pure logic (timebase math, ROI geometry, event
   detection, the search-strategy classifier), Playwright for an end-to-end
   smoke test of the full workflow.
-- **Fixed the sample-video loader duplicating videos on a second click
-  (2026-09-05).** Elvis reported clicking "Load the 3 sample videos" twice
-  added six rows, not three. `videoId()` keys on name + size +
-  `lastModified`, and the `File` constructed from a freshly fetched `Blob`
-  had no explicit `lastModified` — it defaults to the moment the `File` is
-  constructed, so the same clip fetched twice got two different ids and
-  `putVideo`'s keyed `put()` never saw them as the same record. Fixed by
-  giving the constructed `File` a fixed `lastModified` (0), so every fetch
-  of the same clip produces the same id and a second click genuinely
-  replaces rather than duplicates. Verified in a real browser: clicking the
-  button twice leaves exactly 3 rows, not 6.
-- **The platform-diameter race fix only covered new layouts -- a second,
-  complementary fix self-heals ones already saved without a diameter
-  (2026-09-05).** The earlier fix (awaiting the default fresh instead of
-  racing a ref) stops a *new* ROI from being created with a null diameter,
-  but Elvis re-tested by re-running the tracker on a video whose layout
-  already existed from before the fix — and re-tracking never touches the
-  ROI at all, so the stale null diameter, and therefore blank path
-  length/speed, persisted exactly as before. Fixed with a second measure:
-  whenever a saved layout loads with `platformDiameterCm: null`, the
-  current global default is applied and persisted immediately (only if the
-  video's own field is still null by the time the default resolves, so a
-  fast manual edit in that window is never clobbered). New e2e test
-  simulates a legacy null-diameter layout through the UI itself (clear the
-  field, let it autosave, reload) rather than assuming, and confirms the
-  default fills back in on reopen.
-- **Steps 5 and 6 got the same width breakout as steps 2-4 (2026-09-05,
-  Elvis's feedback), same fix shape as step 3's alignment on 2026-09-04.**
+- **Sample-video loading is idempotent by name, not by relying on a
+  fetched `File`'s derived id, `VideoLoader.tsx`.** First fix: clicking
+  "Load the 3 sample videos" twice added six rows, not three, traced to
+  `File`'s `lastModified` defaulting to "now" on every fetch, so the same
+  clip fetched twice got two different ids and `putVideo`'s keyed `put()`
+  never saw them as the same record. Fixed with a constant `lastModified`
+  (0) — but that was reported as still duplicating on a second click, and
+  rather than keep chasing why the id might occasionally still differ, the
+  mechanism was replaced entirely: the button now skips fetching any
+  sample name already present in the table, which guarantees no duplicate
+  regardless of how any id is computed, and only fetches whichever of the
+  three (if any) are actually missing. Deliberately scoped to the three
+  known sample names only: a user's own uploaded videos keep the existing,
+  more permissive dedup-by-content behaviour in `addFiles`, since
+  duplicate user uploads are expected to be allowed.
+- **Steps 5 and 6 got the same width breakout as steps 2-4 (2026-09-05),
+  same fix shape as step 3's alignment on 2026-09-04.**
   `.export-panel` and `.viz-panel` had never been given the `min(90rem,
   100vw - 5rem)` breakout the other mid-workflow steps use, so their
   heading bars sat at `#root`'s narrower left edge. Verified the same way:
   measuring `getBoundingClientRect().left` on all of steps 2, 5, and 6 in a
   real browser (all 40px after the fix).
 - **A pass of wording and visual cleanup across the whole app
-  (2026-09-05, Elvis's feedback: reduce wordiness, and fix it with UI, not
+  (2026-09-05: reduce wordiness, and fix it with UI, not
   more text, where the ask was about the workflow itself).** Concrete
   changes, not just trims:
   - The title/lede shortened to a single line; the sample-videos callout
@@ -1026,7 +962,7 @@ just change code silently, when a decision changes.
   reasoning as every other drag-plus-keyboard-alternative pair in this
   project.
 - **Nothing past step 1 renders until a video is selected (2026-09-07),
-  `App.tsx`.** Elvis's feedback, two complaints that turned out to share one
+  `App.tsx`.** Two complaints that turned out to share one
   fix: it wasn't obvious that clicking "Define maze" is how the pipeline
   actually starts, since steps 2-6 (including Export and Visualizations)
   used to render unconditionally; and Export/Visualizations specifically
@@ -1103,20 +1039,6 @@ just change code silently, when a decision changes.
   disappeared. See AI_NOTES.md for the full account, including a second,
   unrelated gotcha caught the same day (`erasableSyntaxOnly` rejecting a
   constructor parameter property).
-- **Platform-diameter self-heal centralized into `loadRoi()` itself
-  (2026-09-07), `state/roiStore.ts`.** The original self-heal (2026-09-05)
-  lived only inside `RoiEditor`'s mount effect, so it
-  only ever reached whichever video's editor a human happened to reopen --
-  a cohort-wide reader (`useCohortData`, behind Export/Visualizations/
-  cohort statistics) calls `loadRoi()` directly and never went through
-  that effect, so it kept seeing a stale null diameter for any video
-  nobody had revisited since the fix shipped. Real, reported consequence:
-  comparing two videos' path length in cohort statistics reported one as
-  "skipped" even though both showed a real path length elsewhere in the
-  tool. `loadRoi()` now heals and persists inline whenever it reads a
-  record with `platformDiameterCm: null` and a global default exists, so
-  every caller gets the healed value uniformly; `RoiEditor`'s own effect
-  simplified accordingly since it no longer needs to do this itself.
 - **`useCohortData` gained an optional second cache-busting key
   (2026-09-07), `src/ui/useCohortData.ts`.** Its effect used to depend only
   on `trackingRefreshToken` (bumped when a tracking *run* completes), but
@@ -1133,7 +1055,7 @@ just change code silently, when a decision changes.
   hole-visit timeline) defaulted to `cohort[0]` -- the first *tracked*
   video by load order -- regardless of which video was actually open in
   step 1, so switching to a different, untracked video could still show
-  charts for an unrelated one. Elvis's call: if the currently-selected
+  charts for an unrelated one. A deliberate call: if the currently-selected
   video isn't tracked, step 6 should show nothing (not another video's
   data); once it is tracked, the per-video charts default to it, with the
   dropdown still available to switch to a different tracked video's charts
@@ -1160,11 +1082,11 @@ just change code silently, when a decision changes.
   `useCohortData`'s own doc comment on that simplification), and a formula
   typed in step 5 produces the identical value if retyped here, which is
   what actually matters for "explore a relationship" -- the controls being
-  wired together wasn't the part Elvis's request needed.
+  wired together wasn't the part the request needed.
 - **Export panel reordered and its "Custom column" input fixed
   (2026-09-07), `ExportPanel.tsx`.** "Custom column" moved below "Per
   video" so the two download-oriented cards ("All videos combined", "Per
-  video") sit adjacent, per Elvis's feedback. Separately, the column-name
+  video") sit adjacent. Separately, the column-name
   field used to force its value back to `'custom'` inside `onChange`
   whenever the field was empty (`e.target.value || 'custom'`) -- fighting
   the user mid-edit, snapping back to "custom" the instant they cleared it
@@ -1183,23 +1105,11 @@ just change code silently, when a decision changes.
   existed. Fixed with a real accent tint plus a left inset border (a shape
   difference, not colour alone), scoped under `.video-table` so its
   specificity beats the existing `:nth-child(even)` zebra rule.
-- **Sample-video loading is now idempotent by name, not by relying on a
-  fetched File's derived id (2026-09-07), `VideoLoader.tsx`.** The
-  previous fix (`lastModified: 0` on the constructed `File`) was reported
-  as still duplicating on a second click.
-  Rather than chase why the id might occasionally differ, made the button
-  itself skip fetching any sample name already present in the table --
-  guarantees no duplicate regardless of id computation, and only fetches
-  whichever of the three (if any) are actually missing. Deliberately
-  scoped to the three known sample names only: a user's own uploaded
-  videos keep the existing, more permissive dedup-by-content behaviour in
-  `addFiles`, since duplicate user uploads are expected to be allowed
-  (Elvis's explicit distinction).
 - **TrialStats notes when the platform diameter is missing (2026-09-07),
   `TrialStats.tsx`.** Path length and average speed are legitimately
   `null` until a video's platform diameter is calibrated, but showing a
   bare "—" with no explanation reads as a bug, not an unmet prerequisite
-  (Elvis: "make sure most users dont skip that step"). Added a plain-
+  ("make sure most users dont skip that step"). Added a plain-
   language note directly on the Path stat group when
   `roi.platformDiameterCm === null`. Also fixed step 1's own diameter
   callout, which had never actually applied the existing dashed/solid
@@ -1209,7 +1119,7 @@ just change code silently, when a decision changes.
   RoiEditor's, so step 1's most important prerequisite field looked no
   different unset than filled in.
 - **Correction points shrink while being dragged (2026-09-07),
-  `TrackViewer.tsx`.** Elvis reported the centroid/nose dots become hard to
+  `TrackViewer.tsx`.** The centroid/nose dots become hard to
   place precisely once you start dragging them. The resting radius (8px
   centroid, 5px nose) is sized for easy grabbing; while `drag` matches that
   point's kind, it now renders much smaller (3px / 2px) so the cursor tip
@@ -1233,7 +1143,7 @@ just change code silently, when a decision changes.
   before the fix this exact interaction jumped it.
 - **Custom-metric scatter plot gained a legend (2026-09-07),
   `VisualizationsPanel.tsx`.** Every point was the same colour and shape,
-  so which dot belonged to which video was illegible (Elvis's feedback).
+  so which dot belonged to which video was illegible.
   Rather than a per-video colour palette (which would need a new colour
   every time a video is added, and this project avoids relying on colour
   alone for meaning anyway), each point gets a small numbered label
@@ -1322,16 +1232,15 @@ reported clean moments earlier. Always verify with `npm run typecheck` or
   explicitly asks to see them.
 - Real, incremental commit history — no squashing the project into one
   commit.
-- **Log every time Elvis overrides a Claude proposal**, in the "Where the
-  human overrode the model" section of `AI_NOTES.md`, at the moment it
-  happens — not reconstructed later. Applies to any session, terminal or
-  chat. Record what was proposed, what Elvis decided instead, the reasoning,
+- **Log real disagreement/correction moments in `AI_NOTES.md`** as they
+  happen, not reconstructed later. Applies to any session, terminal or
+  chat. Record what was proposed, what was decided instead, the reasoning,
   and who turned out to be right. This is a deliberate record of where the
   project diverged from model judgment; the brief asks for real disagreement
   moments, and a human overruling the model is the most informative kind.
 - When proposing a preemptive fix, state whether the failure it prevents has
   been **demonstrated** (observed in this repo) or **predicted** (pattern
-  from training data). Elvis calibrates on that distinction — don't blur it,
+  from training data). Don't blur that distinction,
   and don't present a framework/template default as a bespoke decision.
 - Milestone order (cut from the bottom if time runs short): scaffold → ROI
   editor → CV tracking core → cleanup/correction UI → event detection &
