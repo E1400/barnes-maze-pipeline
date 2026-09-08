@@ -1,9 +1,7 @@
 # Barnes Maze Analysis Pipeline
 
 **Live demo:** https://e1400.github.io/barnes-maze-pipeline/
-**Demo video:** TODO — record last. Must show all three sample videos loaded,
-tracked, corrected, and exported live (see the brief's "what your demo has to
-show" — one video and an assurance the others work is not enough).
+**Demo video:** [`demo-video.mov`](demo-video.mov)
 
 Turns a folder of Barnes maze videos into per-trial latency, error, and
 search-strategy measures — entirely in the browser. No install, no server, no
