@@ -6,7 +6,8 @@
   majority of feature development onward. Both via Claude Code (terminal and
   VS Code-integrated), no chat-only usage.
 - **Configuration:**
-  - `CLAUDE.md` (repo root) — the running architecture-decision record.
+  - `CLAUDE.md` (repo root) — the running architecture-decision record
+    (moved to `docs/decisions.md` on 2026-10-16; `CLAUDE.md` is now its index).
     Every non-obvious choice (pure TypeScript over OpenCV.js, a
     detection-first ROI editor, tracking in a Worker, why escape detection
     needed a second finalize pass) is written down as it's decided, with the

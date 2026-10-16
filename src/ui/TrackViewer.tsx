@@ -6,7 +6,7 @@
  * this lets you reposition a point on a frame the tracker already called
  * TRACKED. It does not (yet) let you relabel a frame's state -- turn a LOST
  * or OCCLUDED_IN_HOLE frame into a tracked one. That's real, planned work,
- * just not this pass (see CLAUDE.md).
+ * just not this pass (see docs/decisions.md).
  *
  * Data (tracks, corrections, frame index, the decoded image) is owned by
  * `useTrackReview`, one level up, so the investigation panel beside this

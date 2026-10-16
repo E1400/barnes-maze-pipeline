@@ -127,7 +127,7 @@ export async function decodeVideo(
   onProgress?: (progress: DecodeProgress) => void,
 ): Promise<void> {
   if (!isWebCodecsDecodingSupported()) {
-    // No fallback decode path exists yet (CLAUDE.md's original plan called
+    // No fallback decode path exists yet (the original plan called
     // for a playback-capture fallback; not built -- tracking simply isn't
     // available without WebCodecs support right now, and that has to be a
     // clear message here, not a cryptic "VideoDecoder is not defined" thrown

@@ -14,7 +14,7 @@
  * called TRACKED -- it repositions a point that exists, it doesn't invent one
  * for a LOST/OCCLUDED_IN_HOLE frame. That would be relabeling the frame's
  * *state*, which is a deliberately separate, later piece of work (see
- * CLAUDE.md).
+ * docs/decisions.md).
  */
 
 import type { Point } from './geometry.ts'

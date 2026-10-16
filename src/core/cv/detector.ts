@@ -99,7 +99,7 @@ export class TypeScriptDetector implements Detector {
   // Reused across every frame of a video: the naive version allocated ~8
   // fresh full-frame buffers (~3MB total) per call, and profiling a real
   // tracking run showed most of the per-frame time going to allocation and
-  // GC churn rather than the actual arithmetic -- see CLAUDE.md's perf
+  // GC churn rather than the actual arithmetic -- see docs/decisions.md's perf
   // notes. Re-created only if the frame size actually changes (never
   // happens mid-video, but handled correctly rather than assumed away).
   private scratch: DetectorScratch | null = null

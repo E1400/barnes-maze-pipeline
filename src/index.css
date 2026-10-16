@@ -129,7 +129,7 @@ a {
 
 /* Deliberately the most visually prominent thing in step 1, right after the
    dropzone -- pixel measurements are not publishable, and this is the one
-   number every downstream measure depends on (see CLAUDE.md). */
+   number every downstream measure depends on (see docs/decisions.md). */
 .sample-callout {
   margin-top: 1rem;
   padding: 0.875rem 1rem;
