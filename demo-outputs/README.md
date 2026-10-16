@@ -27,7 +27,7 @@ The sample videos themselves are not committed here; they live in
 `test51` and `test53` had their target hole identified programmatically:
 each was tracked once with no target set, then the hole nearest the
 tracker's own trailing `OCCLUDED_IN_HOLE` run (a real, evidence-based
-signal — see CLAUDE.md's escape-detection notes) was set as the target and
+signal — see the escape-detection notes in docs/decisions.md) was set as the target and
 the video re-tracked. `test51`'s discovered hole (20) matches this
 project's own independently-verified ground truth from earlier manual
 inspection of the real per-frame track.

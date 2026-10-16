@@ -128,7 +128,8 @@ No API key, no account, no per-run cost.
 
 See [AI_NOTES.md](AI_NOTES.md) for the tools and setup used, and specific
 moments of disagreement or correction, logged as they happened.
-[`CLAUDE.md`](CLAUDE.md) is the running architecture-decision record;
+[`CLAUDE.md`](CLAUDE.md) is the session index and
+[`docs/decisions.md`](docs/decisions.md) the running architecture-decision record;
 `.claude/agents/cv-reviewer.md` and `.claude/commands/sample-check.md` are
 project-specific review tooling, not generic scaffolding.
 

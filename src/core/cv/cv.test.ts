@@ -223,7 +223,7 @@ describe('morphology', () => {
     // filterSeparable was rewritten to inline its min/max comparison and
     // short-circuit instead of calling a reducer callback per neighbour
     // (measured as the majority of a whole frame's detection cost -- see
-    // CLAUDE.md). That's a real behavioural risk disguised as "just faster,"
+    // docs/decisions.md). That's a real behavioural risk disguised as "just faster,"
     // so cross-check it against an obviously-correct, independently-written
     // reference on a mask that isn't a clean geometric shape -- a fixed
     // pseudo-random pattern exercises every edge and corner case at once,
@@ -440,7 +440,7 @@ describe('TypeScriptDetector', () => {
     // TypeScriptDetector holds its intermediate buffers (diff, binary,
     // morphology, labels) as instance state and reuses them frame to frame
     // instead of allocating fresh ones -- a real per-frame allocation cost
-    // measured as the majority of a tracking pass's time (see CLAUDE.md).
+    // measured as the majority of a tracking pass's time (see docs/decisions.md).
     // The adversarial sequence: a masked frame WITH an animal, immediately
     // followed by an unmasked, fully empty frame. If any reused buffer kept
     // a stale 1/label from the animal-present, masked call, the empty call

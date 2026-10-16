@@ -4,7 +4,7 @@
  * Global (revised 2026-09-03), not per-video: a facility scores every video
  * in a study against the same criteria, so a value set once should be the
  * standard for every later video, not something re-chosen per clip -- see
- * CLAUDE.md. Stored under a settings key, same shape as the default
+ * docs/decisions.md. Stored under a settings key, same shape as the default
  * platform diameter.
  */
 
